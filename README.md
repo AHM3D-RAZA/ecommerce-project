@@ -5,23 +5,41 @@ full-stack training assignment. Storefront design is based on the Molla
 HTML template; the admin dashboard (coming in a later phase) is based on
 Material Dashboard.
 
-## Current status: Phase 1
+## Current status: Phase 2
 
-This phase delivers the project foundation and a fully working, database-driven
-homepage:
+Phase 1 delivered the project foundation and the homepage. Phase 2 adds the
+rest of the browsing + cart experience:
 
-- Full folder structure (config / core / public / admin / includes)
-- Database schema with seed data (6 categories, 16 products, 1 admin + 1 demo customer)
-- Core classes: Database (MySQLi + prepared statements), Auth, Session, Validator
-- Shared header/footer used on every page, with a real category menu and a
-  working session-based cart indicator
-- Homepage (`public/index.php`) - converted from the Molla template's
-  `index-4.html`, pulling categories and products live from the database
+- **`public/category.php`** - the shop/listing page, converted from the
+  template's `category.html`. Filter by category (sidebar, with live product
+  counts pulled from the database) or by price range, search by name (wired
+  to the header search box), sort by newest/price/name, and paginate (9
+  products per page).
+- **`public/product.php`** - the product detail page, converted from
+  `product.html`. Shows real price, description, stock ("In stock (N
+  available)" / "Out of stock"), a quantity-aware add-to-cart form, and a
+  "You May Also Like" strip of related products from the same category.
+- **`public/cart.php`** - a real, working cart page: add a product (from any
+  product card or the product page), remove a line, or update quantities,
+  all stored in the session and validated against actual stock. The header's
+  mini-cart dropdown and this page share the same cart-building code, so
+  they always agree.
+- Two small Phase 1 bugs fixed along the way: `includes/header.php` was
+  missing the `<main class="main">` tag that `footer.php` closes (harmless
+  in a browser, but not valid HTML), and the mini-cart dropdown was linking
+  to `product.php?slug=<id>` (a number) instead of the product's real slug.
+- Pulled the repeated product-card markup out of `index.php` into
+  `includes/product-card.php` so `index.php`, `category.php` and
+  `product.php` all render products the same way from one place.
 
-Not built yet (next phases): category listing page, product detail page,
-cart page, checkout + PayPal, login/register pages, and the admin dashboard.
-Right now several header links (Shop, Product, Cart, Checkout, Login) point
-to pages that don't exist yet - that's expected at this stage.
+Every page above was smoke-tested against a real MySQL database (the actual
+`schema.sql` in this repo) before being handed off - filtering, search,
+sorting, pagination, add/remove/update-quantity, and stock clamping (you
+can't add more of something than is actually in stock) all behave correctly.
+
+Not built yet (next phases): checkout + PayPal Sandbox, login/register
+pages, and the admin dashboard. The header's Login/Register/Checkout links
+still point to pages that don't exist yet - that's expected until Phase 3.
 
 ## Setup on WAMP
 
@@ -36,6 +54,26 @@ to pages that don't exist yet - that's expected at this stage.
    your MySQL root user has a password set.
 5. Visit `http://localhost/ecommerce-project/public/` in your browser.
    You should see the homepage with real categories and products.
+
+## Things to try in this phase
+
+Once it's running at `http://localhost/ecommerce-project/public/`:
+
+- Click **Browse Categories** or **Shop** in the header, or any category
+  block on the homepage - lands you on `category.php` with that category
+  pre-filtered.
+- On the shop page, try the price filter in the sidebar, or the sort
+  dropdown (Newest / Price / Name).
+- Use the search box in the header (desktop or mobile menu) - it searches
+  product names and reuses the same `category.php` page.
+- Click any product to land on its detail page, change the quantity, and
+  hit **Add to Cart**.
+- Click the cart icon (top right) to see the dropdown, or **View Cart** for
+  the full cart page - change a quantity and click **Update Cart**, or
+  remove an item with the X.
+- Try adding more of a product than its stock allows (e.g. the Bose
+  SoundLink has 30 in stock) - it clamps at the real stock number instead
+  of going over.
 
 ## Test logins (already seeded)
 

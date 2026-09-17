@@ -26,37 +26,7 @@ $deals = $db->select("SELECT * FROM products WHERE status = 1 ORDER BY price DES
 $featured = $db->select("SELECT * FROM products WHERE status = 1 ORDER BY RAND() LIMIT 8");
 
 require_once __DIR__ . '/../includes/header.php';
-
-// Small helper so we don't repeat this product-card markup five times
-function render_product_card($p)
-{
-    $img = 'assets/images/demos/demo-4/' . htmlspecialchars($p['image']);
-    $name = htmlspecialchars($p['name']);
-    $link = 'product.php?slug=' . urlencode($p['slug']);
-    ?>
-    <div class="product product-2">
-        <figure class="product-media">
-            <?php if ((int) $p['stock'] === 0): ?>
-                <span class="product-label label-out">Out of stock</span>
-            <?php endif; ?>
-            <a href="<?= $link ?>">
-                <img src="<?= $img ?>" alt="<?= $name ?>" class="product-image">
-            </a>
-
-            <div class="product-action">
-                <a href="cart.php?add=<?= (int) $p['id'] ?>" class="btn-product btn-cart"><span>add to cart</span></a>
-            </div>
-        </figure>
-
-        <div class="product-body">
-            <h3 class="product-title"><a href="<?= $link ?>"><?= $name ?></a></h3>
-            <div class="product-price">
-                $<?= number_format($p['price'], 2) ?>
-            </div>
-        </div>
-    </div>
-    <?php
-}
+require_once __DIR__ . '/../includes/product-card.php';
 ?>
             <div class="intro-slider-container mb-5">
                 <div class="intro-slider owl-carousel owl-theme owl-nav-inside owl-light" data-toggle="owl"

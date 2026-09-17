@@ -19,7 +19,7 @@ if (!empty($cart)) {
     $ids = array_map('intval', array_keys($cart));
     $placeholders = implode(',', array_fill(0, count($ids), '?'));
     $conn = $db->getConnection();
-    $stmt = $conn->prepare("SELECT id, name, price, image FROM products WHERE id IN ($placeholders)");
+    $stmt = $conn->prepare("SELECT id, name, slug, price, image, stock FROM products WHERE id IN ($placeholders)");
     $types = str_repeat('i', count($ids));
     $stmt->bind_param($types, ...$ids);
     $stmt->execute();
@@ -133,7 +133,7 @@ $pageTitle = isset($pageTitle) ? $pageTitle . ' - ShopWave' : 'ShopWave - Online
                                             <div class="product">
                                                 <div class="product-cart-details">
                                                     <h4 class="product-title">
-                                                        <a href="product.php?slug=<?= urlencode($item['id']) ?>"><?= htmlspecialchars($item['name']) ?></a>
+                                                        <a href="product.php?slug=<?= urlencode($item['slug']) ?>"><?= htmlspecialchars($item['name']) ?></a>
                                                     </h4>
 
                                                     <span class="cart-product-info">
@@ -143,7 +143,7 @@ $pageTitle = isset($pageTitle) ? $pageTitle . ' - ShopWave' : 'ShopWave - Online
                                                 </div><!-- End .product-cart-details -->
 
                                                 <figure class="product-image-container">
-                                                    <a href="product.php?id=<?= (int) $item['id'] ?>" class="product-image">
+                                                    <a href="product.php?slug=<?= urlencode($item['slug']) ?>" class="product-image">
                                                         <img src="assets/images/demos/demo-4/<?= htmlspecialchars($item['image']) ?>" alt="product">
                                                     </a>
                                                 </figure>
@@ -219,3 +219,23 @@ $pageTitle = isset($pageTitle) ? $pageTitle . ' - ShopWave' : 'ShopWave - Online
                 </div><!-- End .container -->
             </div><!-- End .header-bottom -->
         </header><!-- End .header -->
+
+        <main class="main">
+            <?php $flashSuccess = Session::flash('success'); ?>
+            <?php $flashError = Session::flash('error'); ?>
+            <?php if ($flashSuccess || $flashError): ?>
+                <div class="container mt-3">
+                    <?php if ($flashSuccess): ?>
+                        <div class="alert alert-primary alert-dismissible fade show" role="alert">
+                            <?= htmlspecialchars($flashSuccess) ?>
+                            <button type="button" class="close" data-dismiss="alert" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+                        </div>
+                    <?php endif; ?>
+                    <?php if ($flashError): ?>
+                        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                            <?= htmlspecialchars($flashError) ?>
+                            <button type="button" class="close" data-dismiss="alert" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+                        </div>
+                    <?php endif; ?>
+                </div>
+            <?php endif; ?>
