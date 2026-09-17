@@ -1,0 +1,6 @@
+Options -Indexes
+
+# Block direct browser access to config, core and admin assets source
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+</IfModule>
