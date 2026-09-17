@@ -4,7 +4,7 @@
 // here once instead of being copy-pasted everywhere.
 function render_product_card($p)
 {
-    $img = 'assets/images/demos/demo-4/' . htmlspecialchars($p['image']);
+    $img = htmlspecialchars(shop_image($p['image']));
     $name = htmlspecialchars($p['name']);
     $link = 'product.php?slug=' . urlencode($p['slug']);
     ?>

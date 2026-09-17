@@ -2,6 +2,7 @@
 require_once __DIR__ . '/../core/Session.php';
 require_once __DIR__ . '/../core/Database.php';
 require_once __DIR__ . '/../core/Auth.php';
+require_once __DIR__ . '/../core/Helpers.php';
 Session::start();
 
 $db = new Database();
@@ -144,7 +145,7 @@ $pageTitle = isset($pageTitle) ? $pageTitle . ' - ShopWave' : 'ShopWave - Online
 
                                                 <figure class="product-image-container">
                                                     <a href="product.php?slug=<?= urlencode($item['slug']) ?>" class="product-image">
-                                                        <img src="assets/images/demos/demo-4/<?= htmlspecialchars($item['image']) ?>" alt="product">
+                                                        <img src="<?= htmlspecialchars(shop_image($item['image'])) ?>" alt="product">
                                                     </a>
                                                 </figure>
                                                 <a href="cart.php?remove=<?= (int) $item['id'] ?>" class="btn-remove" title="Remove Product"><i class="icon-close"></i></a>

@@ -46,7 +46,7 @@ $inStock = (int) $product['stock'] > 0;
                             <div class="col-md-6">
                                 <div class="product-gallery">
                                     <figure class="product-main-image">
-                                        <img src="assets/images/demos/demo-4/<?= htmlspecialchars($product['image']) ?>" alt="<?= htmlspecialchars($product['name']) ?>">
+                                        <img src="<?= htmlspecialchars(shop_image($product['image'])) ?>" alt="<?= htmlspecialchars($product['name']) ?>">
                                     </figure>
                                 </div><!-- End .product-gallery -->
                             </div><!-- End .col-md-6 -->

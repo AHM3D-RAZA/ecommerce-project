@@ -1,0 +1,5 @@
+# Uploaded files are images only - never let this folder execute PHP,
+# even if someone manages to upload a file with a .php extension.
+<FilesMatch "\.(php|phtml|php3|php4|php5|phar)$">
+    Require all denied
+</FilesMatch>

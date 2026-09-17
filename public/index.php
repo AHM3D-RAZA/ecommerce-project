@@ -100,7 +100,7 @@ require_once __DIR__ . '/../includes/product-card.php';
                                 <a href="category.php?slug=<?= urlencode($cat['slug']) ?>" class="cat-block">
                                     <figure>
                                         <span>
-                                            <img src="assets/images/demos/demo-4/<?= htmlspecialchars($cat['image']) ?>" alt="<?= htmlspecialchars($cat['name']) ?>">
+                                            <img src="<?= htmlspecialchars(shop_image($cat['image'])) ?>" alt="<?= htmlspecialchars($cat['name']) ?>">
                                         </span>
                                     </figure>
                                     <h3 class="cat-block-title"><?= htmlspecialchars($cat['name']) ?></h3>

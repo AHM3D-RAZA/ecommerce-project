@@ -123,7 +123,7 @@ require_once __DIR__ . '/../includes/header.php';
                                                         <td class="product-col">
                                                             <div class="product">
                                                                 <figure class="product-media">
-                                                                    <img src="assets/images/demos/demo-4/<?= htmlspecialchars($item['image']) ?>" alt="<?= htmlspecialchars($item['name']) ?>">
+                                                                    <img src="<?= htmlspecialchars(shop_image($item['image'])) ?>" alt="<?= htmlspecialchars($item['name']) ?>">
                                                                 </figure>
                                                                 <h3 class="product-title">
                                                                     <a href="product.php?slug=<?= urlencode($item['slug']) ?>"><?= htmlspecialchars($item['name']) ?></a>
