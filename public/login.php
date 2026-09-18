@@ -12,8 +12,16 @@ if (Auth::isLoggedIn()) {
 $signinError = null;
 $signinEmail = '';
 $redirect = trim($_GET['redirect'] ?? $_POST['redirect'] ?? '');
-// Only ever redirect to another page on this same site
-if ($redirect === '' || strpos($redirect, '://') !== false || strpos($redirect, '//') === 0) {
+// Only ever redirect to another page on this same site. Block anything with a
+// scheme (://), a protocol-relative host (//...), a leading /, or backslashes
+// (browsers treat \ like /, so "\evil.com" would otherwise escape the site).
+if (
+    $redirect === ''
+    || strpos($redirect, '://') !== false
+    || strpos($redirect, '//') === 0
+    || $redirect[0] === '/'
+    || strpos($redirect, '\\') !== false
+) {
     $redirect = 'account.php';
 }
 

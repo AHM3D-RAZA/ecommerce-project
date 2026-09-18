@@ -99,42 +99,65 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['place_order'])) {
         if (!$stockOk) {
             $checkoutError = 'Sorry, one of the items in your cart just sold out. Please review your cart and try again.';
         } else {
-            $shippingAddress = sprintf(
-                "%s %s\n%s\n%s, %s %s\nPhone: %s",
-                $old['first_name'],
-                $old['last_name'],
-                $old['address'],
-                $old['city'],
-                $old['state'],
-                $old['zip'],
-                $old['phone']
-            );
-            if ($old['notes'] !== '') {
-                $shippingAddress .= "\nNotes: " . $old['notes'];
-            }
+            // Write the order, its items and the stock decrements atomically, and
+            // never decrement below zero: if anything fails or another buyer took
+            // the last unit mid-checkout, everything rolls back.
+            $conn = $db->getConnection();
+            $conn->begin_transaction();
 
-            $orderNumber = 'ORD-' . date('Ymd') . '-' . strtoupper(bin2hex(random_bytes(3)));
-            $paymentStatus = $paymentMethod === 'paypal' ? 'completed' : 'pending';
-            $transactionId = $paymentMethod === 'paypal' ? $paypalOrderId : null;
-
-            $orderId = $db->insert(
-                "INSERT INTO orders (user_id, order_number, total_amount, payment_method, payment_status, order_status, transaction_id, shipping_address)
-                 VALUES (?, ?, ?, ?, ?, 'processing', ?, ?)",
-                [$userId, $orderNumber, $cartTotal, $paymentMethod, $paymentStatus, $transactionId, $shippingAddress]
-            );
-
-            foreach ($cartItems as $item) {
-                $db->insert(
-                    "INSERT INTO order_items (order_id, product_id, quantity, unit_price, subtotal) VALUES (?, ?, ?, ?, ?)",
-                    [$orderId, $item['id'], $item['qty'], $item['price'], $item['line_total']]
+            try {
+                $shippingAddress = sprintf(
+                    "%s %s\n%s\n%s, %s %s\nPhone: %s",
+                    $old['first_name'],
+                    $old['last_name'],
+                    $old['address'],
+                    $old['city'],
+                    $old['state'],
+                    $old['zip'],
+                    $old['phone']
                 );
-                $db->run("UPDATE products SET stock = stock - ? WHERE id = ?", [$item['qty'], $item['id']]);
+                if ($old['notes'] !== '') {
+                    $shippingAddress .= "\nNotes: " . $old['notes'];
+                }
+
+                $orderNumber = 'ORD-' . date('Ymd') . '-' . strtoupper(bin2hex(random_bytes(3)));
+                $paymentStatus = $paymentMethod === 'paypal' ? 'completed' : 'pending';
+                $transactionId = $paymentMethod === 'paypal' ? $paypalOrderId : null;
+
+                $orderId = $db->insert(
+                    "INSERT INTO orders (user_id, order_number, total_amount, payment_method, payment_status, order_status, transaction_id, shipping_address)
+                     VALUES (?, ?, ?, ?, ?, 'processing', ?, ?)",
+                    [$userId, $orderNumber, $cartTotal, $paymentMethod, $paymentStatus, $transactionId, $shippingAddress]
+                );
+
+                foreach ($cartItems as $item) {
+                    $db->insert(
+                        "INSERT INTO order_items (order_id, product_id, quantity, unit_price, subtotal) VALUES (?, ?, ?, ?, ?)",
+                        [$orderId, $item['id'], $item['qty'], $item['price'], $item['line_total']]
+                    );
+
+                    // Atomic guard: the decrement only lands if there is still enough stock.
+                    $decremented = $db->run(
+                        "UPDATE products SET stock = stock - ? WHERE id = ? AND stock >= ?",
+                        [$item['qty'], $item['id'], $item['qty']]
+                    );
+                    if ($decremented === 0) {
+                        throw new RuntimeException('Insufficient stock for product ' . $item['id']);
+                    }
+                }
+
+                $conn->commit();
+            } catch (Throwable $e) {
+                $conn->rollback();
+                $checkoutError = 'Sorry, one of the items in your cart just sold out. Please review your cart and try again.';
             }
 
-            Session::set('cart', []);
-            Session::flash('success', 'Your order has been placed - thank you!');
-            header('Location: order-confirmation.php?order=' . urlencode($orderNumber));
-            exit;
+            if (empty($checkoutError)) {
+                Session::set('cart', []);
+                Session::flash('success', 'Your order has been placed - thank you!');
+                header('Location: order-confirmation.php?order=' . urlencode($orderNumber));
+                exit;
+            }
         }
     }
 }

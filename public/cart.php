@@ -68,7 +68,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_cart'])) {
 
         $product = $db->selectOne("SELECT stock FROM products WHERE id = ?", [$id]);
         $stock = $product ? (int) $product['stock'] : 0;
-        $cart[$id] = min($qty, max($stock, 1));
+
+        if ($stock <= 0) {
+            // Sold out - don't let it sit in the cart at qty 1.
+            unset($cart[$id]);
+        } else {
+            $cart[$id] = min($qty, $stock);
+        }
     }
 
     Session::set('cart', $cart);

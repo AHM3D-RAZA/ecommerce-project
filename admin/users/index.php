@@ -43,9 +43,9 @@ require_once __DIR__ . '/../../includes/admin-header.php';
 <div class="card">
     <div class="card-header pb-0 d-flex justify-content-between align-items-center flex-wrap gap-2">
         <h6 class="mb-0">Registered Users</h6>
-        <form method="get" class="d-flex">
-            <input type="text" name="q" class="form-control form-control-sm" placeholder="Search name or email..." value="<?= htmlspecialchars($search) ?>">
-            <button type="submit" class="btn btn-sm btn-outline-dark ms-2">Search</button>
+        <form method="get" class="d-flex align-items-center gap-2 flex-wrap ms-auto">
+            <input type="text" name="q" class="form-control form-control-sm" style="max-width: 280px; min-width: 180px;" placeholder="Search name or email..." value="<?= htmlspecialchars($search) ?>">
+            <button type="submit" class="btn btn-sm btn-outline-dark text-nowrap px-3">Search</button>
         </form>
     </div>
     <div class="card-body px-0 pb-2">

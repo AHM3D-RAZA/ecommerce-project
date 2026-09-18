@@ -63,12 +63,12 @@ $inStock = (int) $product['stock'] > 0;
                                         <p><?= nl2br(htmlspecialchars($product['description'])) ?></p>
                                     </div>
 
-                                    <div class="details-filter-row">
-                                        <label>Availability:</label>
+                                    <div class="details-filter-row" style="display: flex; align-items: center; flex-wrap: wrap; gap: 2rem; row-gap: 0.25rem; line-height: 1.4;">
+                                        <label style="margin-bottom: 0; white-space: nowrap;">Availability:</label>
                                         <?php if ($inStock): ?>
-                                            <span class="text-primary">In stock (<?= (int) $product['stock'] ?> available)</span>
+                                            <span class="text-primary" style="display: inline-block;">In stock (<?= (int) $product['stock'] ?> available)</span>
                                         <?php else: ?>
-                                            <span class="text-danger">Out of stock</span>
+                                            <span class="text-danger" style="display: inline-block;">Out of stock</span>
                                         <?php endif; ?>
                                     </div>
 

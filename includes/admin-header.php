@@ -27,6 +27,10 @@ function nav_active($key, $activeNav)
     <link href="<?= $base ?>assets/css/nucleo-icons.css" rel="stylesheet">
     <link href="<?= $base ?>assets/css/nucleo-svg.css" rel="stylesheet">
     <link id="pagestyle" href="<?= $base ?>assets/css/material-dashboard.min.css" rel="stylesheet">
+    <?php if (($pageScript ?? '') === 'chart'): ?>
+        <!-- Chart.js must load BEFORE the page's inline chart code, which runs later in the body. -->
+        <script src="<?= $base ?>assets/js/plugins/chartjs.min.js"></script>
+    <?php endif; ?>
 </head>
 <body class="g-sidenav-show bg-gray-100">
 
