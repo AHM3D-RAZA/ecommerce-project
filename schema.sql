@@ -56,7 +56,7 @@ CREATE TABLE orders (
     user_id INT UNSIGNED NOT NULL,
     order_number VARCHAR(50) NOT NULL UNIQUE,
     total_amount DECIMAL(10, 2) NOT NULL,
-    payment_method ENUM('cod', 'paypal') NOT NULL,
+    payment_method ENUM('cod', 'stripe') NOT NULL,
     payment_status ENUM('pending', 'completed', 'failed') DEFAULT 'pending',
     order_status ENUM('processing', 'shipped', 'delivered', 'cancelled') DEFAULT 'processing',
     transaction_id VARCHAR(100) NULL,

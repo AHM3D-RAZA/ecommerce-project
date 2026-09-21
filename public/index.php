@@ -314,7 +314,7 @@ require_once __DIR__ . '/../includes/product-card.php';
                             <span class="icon-box-icon text-dark"><i class="icon-info-circle"></i></span>
                             <div class="icon-box-content">
                                 <h3 class="icon-box-title">Secure Checkout</h3>
-                                <p>COD & PayPal</p>
+                                <p>COD & Stripe</p>
                             </div>
                         </div>
                     </div>

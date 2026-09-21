@@ -2,6 +2,8 @@
 require_once __DIR__ . '/../core/Session.php';
 require_once __DIR__ . '/../core/Auth.php';
 require_once __DIR__ . '/../core/Database.php';
+require_once __DIR__ . '/../config/stripe.php';
+
 Session::start();
 Auth::requireLogin('login.php');
 
@@ -10,7 +12,7 @@ $userId = Session::get('user_id');
 $orderNumber = trim($_GET['order'] ?? '');
 
 $order = $orderNumber !== '' ? $db->selectOne(
-    "SELECT * FROM orders WHERE order_number = ? AND user_id = ?",
+    'SELECT * FROM orders WHERE order_number = ? AND user_id = ?',
     [$orderNumber, $userId]
 ) : null;
 
@@ -20,13 +22,34 @@ if (!$order) {
 }
 
 $items = $db->select(
-    "SELECT oi.*, p.name, p.slug FROM order_items oi JOIN products p ON p.id = oi.product_id WHERE oi.order_id = ?",
+    'SELECT oi.*, p.name, p.slug FROM order_items oi JOIN products p ON p.id = oi.product_id WHERE oi.order_id = ?',
     [$order['id']]
 );
 
-$paymentMethodLabels = ['cod' => 'Cash on Delivery', 'paypal' => 'PayPal'];
+$paymentMethodLabels = ['cod' => 'Cash on Delivery', 'stripe' => 'Stripe'];
 $paymentStatusLabels = ['pending' => 'Pending', 'completed' => 'Completed', 'failed' => 'Failed'];
 $orderStatusLabels = ['processing' => 'Processing', 'shipped' => 'Shipped', 'delivered' => 'Delivered', 'cancelled' => 'Cancelled'];
+
+$sessionId = trim($_GET['session_id'] ?? '');
+if ($order['payment_method'] === 'stripe' && $order['payment_status'] === 'pending' && $sessionId !== '') {
+    try {
+        $checkout = stripe_api('GET', '/checkout/sessions/' . urlencode($sessionId));
+        $paid = ($checkout['payment_status'] ?? '') === 'paid' || ($checkout['status'] ?? '') === 'complete';
+        if ($paid) {
+            $db->run(
+                "UPDATE orders SET payment_status = 'completed', transaction_id = ? WHERE id = ?",
+                [$checkout['payment_intent'] ?? $checkout['id'], $order['id']]
+            );
+            $order['payment_status'] = 'completed';
+            $order['transaction_id'] = $checkout['payment_intent'] ?? $checkout['id'];
+        } else {
+            $db->run("UPDATE orders SET payment_status = 'failed' WHERE id = ?", [$order['id']]);
+            $order['payment_status'] = 'failed';
+        }
+    } catch (Throwable $e) {
+        // Leave it pending for manual review if Stripe cannot be validated.
+    }
+}
 
 $pageTitle = 'Order Confirmation';
 require_once __DIR__ . '/../includes/header.php';
@@ -118,5 +141,5 @@ require_once __DIR__ . '/../includes/header.php';
                     </div>
                 </div>
             </div>
-        </main><!-- End .main -->
+        </main>
 <?php require_once __DIR__ . '/../includes/footer.php'; ?>
