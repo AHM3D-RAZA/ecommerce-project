@@ -234,6 +234,28 @@ Once you're signed in at `admin/login.php`:
 one at https://developer.paypal.com under My Apps & Credentials -> Sandbox,
 and drop it in before the checkout phase.
 
+## Stripe and the `.env` file
+
+Card payments go through Stripe Checkout (sandbox/test mode). Secrets are
+kept out of the code in a `.env` file in the project root:
+
+1. Copy `.env.example` to `.env`.
+2. Fill in `STRIPE_PUBLISHABLE_KEY` and `STRIPE_SECRET_KEY` with your test
+   keys from the Stripe Dashboard (Developers -> API keys).
+3. `APP_DEBUG=true` shows the real error on the checkout page while
+   developing; set it to `false` before going live.
+
+`.env` is git-ignored and blocked from the browser by `.htaccess`. Use
+Stripe's test card `4242 4242 4242 4242` with any future expiry and any CVC.
+
+If you set up the database before Stripe replaced PayPal, the `orders` table
+still has the old payment-method list and Stripe orders will fail to save.
+Update it once with:
+
+    ALTER TABLE orders MODIFY payment_method ENUM('cod', 'stripe') NOT NULL;
+
+(Any existing rows with `paypal` need to be deleted or changed first.)
+
 ## Notes on the template conversion
 
 - The Molla template's top navigation is actually its own "demo picker"

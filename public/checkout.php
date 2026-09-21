@@ -47,6 +47,33 @@ $user = $db->selectOne('SELECT name, email FROM users WHERE id = ?', [$userId]);
 $nameParts = explode(' ', $user['name'], 2);
 
 $checkoutError = null;
+
+// Coming back from Stripe's page via "Back"/"Cancel": the order was saved before
+// redirecting, so release its stock and mark it failed. The cart is untouched.
+if (isset($_GET['cancel'], $_GET['order'])) {
+    $cancelled = $db->selectOne(
+        "SELECT id FROM orders WHERE order_number = ? AND user_id = ? AND payment_method = 'stripe' AND payment_status = 'pending'",
+        [trim($_GET['order']), $userId]
+    );
+
+    if ($cancelled) {
+        $conn = $db->getConnection();
+        $conn->begin_transaction();
+        try {
+            $db->run("UPDATE orders SET payment_status = 'failed', order_status = 'cancelled' WHERE id = ?", [$cancelled['id']]);
+            foreach ($db->select('SELECT product_id, quantity FROM order_items WHERE order_id = ?', [$cancelled['id']]) as $row) {
+                $db->run('UPDATE products SET stock = stock + ? WHERE id = ?', [(int) $row['quantity'], (int) $row['product_id']]);
+            }
+            $conn->commit();
+        } catch (Throwable $e) {
+            $conn->rollback();
+            error_log('Stripe cancel cleanup failed: ' . $e->getMessage());
+        }
+    }
+
+    $checkoutError = 'Payment was cancelled, so your order was not placed. Your cart is still here if you want to try again.';
+}
+
 $old = [
     'first_name' => $nameParts[0] ?? '',
     'last_name' => $nameParts[1] ?? '',
@@ -136,8 +163,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['place_order'])) {
                 if ($paymentMethod === 'stripe') {
                     $checkoutSession = stripe_api('POST', '/checkout/sessions', [
                         'mode' => 'payment',
-                        'success_url' => 'http://localhost/ecommerce-project/public/order-confirmation.php?order=' . urlencode($orderNumber) . '&session_id={CHECKOUT_SESSION_ID}',
-                        'cancel_url' => 'http://localhost/ecommerce-project/public/checkout.php?cancel=1',
+                        // {CHECKOUT_SESSION_ID} must stay literal - Stripe swaps in the real id
+                        'success_url' => stripe_return_url('order-confirmation.php', ['order' => $orderNumber]) . '&session_id={CHECKOUT_SESSION_ID}',
+                        'cancel_url' => stripe_return_url('checkout.php', ['cancel' => 1, 'order' => $orderNumber]),
                         'customer_email' => $old['email'],
                         'payment_method_types' => ['card'],
                         'line_items' => [[
@@ -174,7 +202,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['place_order'])) {
                 exit;
             } catch (Throwable $e) {
                 $conn->rollback();
+                error_log('Checkout failed: ' . $e->getMessage());
                 $checkoutError = 'Sorry, we could not complete your checkout. Please try again.';
+                if (Env::bool('APP_DEBUG')) {
+                    $checkoutError .= ' (' . $e->getMessage() . ')';
+                }
             }
         }
     }

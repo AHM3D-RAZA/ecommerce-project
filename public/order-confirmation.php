@@ -35,6 +35,11 @@ if ($order['payment_method'] === 'stripe' && $order['payment_status'] === 'pendi
     try {
         $checkout = stripe_api('GET', '/checkout/sessions/' . urlencode($sessionId));
         $paid = ($checkout['payment_status'] ?? '') === 'paid' || ($checkout['status'] ?? '') === 'complete';
+        // The session must be the one created for this exact order, otherwise a
+        // paid session id from some other order could be used to mark this one paid.
+        if (($checkout['id'] ?? '') !== $order['transaction_id']) {
+            throw new RuntimeException('Stripe session does not belong to this order.');
+        }
         if ($paid) {
             $db->run(
                 "UPDATE orders SET payment_status = 'completed', transaction_id = ? WHERE id = ?",
@@ -42,6 +47,7 @@ if ($order['payment_method'] === 'stripe' && $order['payment_status'] === 'pendi
             );
             $order['payment_status'] = 'completed';
             $order['transaction_id'] = $checkout['payment_intent'] ?? $checkout['id'];
+            Session::set('cart', []);
         } else {
             $db->run("UPDATE orders SET payment_status = 'failed' WHERE id = ?", [$order['id']]);
             $order['payment_status'] = 'failed';

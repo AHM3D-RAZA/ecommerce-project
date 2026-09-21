@@ -4,3 +4,8 @@ Options -Indexes
 <IfModule mod_rewrite.c>
     RewriteEngine On
 </IfModule>
+
+# Keep secrets out of the browser
+<FilesMatch "^\.env">
+    Require all denied
+</FilesMatch>

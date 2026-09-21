@@ -1,76 +1,90 @@
 <?php
+// Stripe sandbox settings. The keys live in the project's .env file (see
+// .env.example), not in this file.
 
-define('STRIPE_PUBLISHABLE_KEY', '');
-define('STRIPE_SECRET_KEY', '');
-define('STRIPE_CURRENCY', 'usd');
+require_once __DIR__ . '/../core/Env.php';
 
-function stripe_api($method, $path, $payload = [])
+define('STRIPE_PUBLISHABLE_KEY', Env::get('STRIPE_PUBLISHABLE_KEY', ''));
+define('STRIPE_SECRET_KEY', Env::get('STRIPE_SECRET_KEY', ''));
+define('STRIPE_CURRENCY', Env::get('STRIPE_CURRENCY', 'usd'));
+
+// Builds an absolute URL to one of the public/ pages, for Stripe's redirects.
+// Uses APP_URL from .env if set, otherwise works it out from the current request.
+function stripe_return_url($file, array $query = [])
 {
-    $caCandidates = [
-        getenv('STRIPE_CA_BUNDLE') ?: null,
-        'C:/wamp64/bin/php/php8.2.29/cacert.pem',
-        __DIR__ . '/cacert.pem',
-        dirname(__DIR__) . '/cacert.pem',
+    $base = Env::get('APP_URL');
+
+    if (!$base) {
+        $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+        $base = $scheme . '://' . $_SERVER['HTTP_HOST'] . rtrim(dirname($_SERVER['SCRIPT_NAME']), '/\\');
+    }
+
+    $url = rtrim($base, '/') . '/' . $file;
+    if (!empty($query)) {
+        $url .= '?' . http_build_query($query);
+    }
+
+    return $url;
+}
+
+// Calls the Stripe REST API and returns the decoded response.
+// Stripe wants form-encoded bodies (nested values as a[b][c]=...), not JSON.
+function stripe_api($method, $path, array $payload = [])
+{
+    $method = strtoupper($method);
+    $url = 'https://api.stripe.com/v1' . $path;
+    $encoded = http_build_query($payload, '', '&', PHP_QUERY_RFC3986);
+
+    $options = [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_CUSTOMREQUEST => $method,
+        CURLOPT_HTTPHEADER => ['Authorization: Bearer ' . STRIPE_SECRET_KEY],
+        CURLOPT_TIMEOUT => 30,
+        CURLOPT_SSL_VERIFYPEER => true,
+        CURLOPT_SSL_VERIFYHOST => 2,
     ];
 
-    $caBundle = null;
+    if ($method === 'GET' || $method === 'DELETE') {
+        if ($encoded !== '') {
+            $url .= '?' . $encoded;
+        }
+    } else {
+        $options[CURLOPT_POSTFIELDS] = $encoded;
+    }
+
+    // WAMP's PHP often has no CA bundle configured, which makes HTTPS calls fail.
+    // Use one from .env / the config folder if we can find it.
+    $caCandidates = [
+        Env::get('STRIPE_CA_BUNDLE'),
+        __DIR__ . '/cacert.pem',
+        'C:/wamp64/bin/php/php8.2.29/cacert.pem',
+    ];
     foreach ($caCandidates as $candidate) {
         if (is_string($candidate) && $candidate !== '' && file_exists($candidate)) {
-            $caBundle = $candidate;
+            $options[CURLOPT_CAINFO] = $candidate;
             break;
         }
     }
 
-    $request = function (bool $verifyPeer, int $verifyHost) use ($method, $path, $payload, $caBundle) {
-        $ch = curl_init('https://api.stripe.com/v1' . $path);
-        if ($ch === false) {
-            throw new RuntimeException('Unable to initialize cURL for Stripe API calls.');
-        }
-
-        $body = null;
-        if ($method !== 'GET' && $method !== 'DELETE') {
-            $body = json_encode($payload, JSON_THROW_ON_ERROR);
-        }
-
-        curl_setopt_array($ch, [
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_USERPWD => STRIPE_SECRET_KEY . ':',
-            CURLOPT_HTTPHEADER => [
-                'Authorization: Bearer ' . STRIPE_SECRET_KEY,
-                'Content-Type: application/json',
-            ],
-            CURLOPT_CUSTOMREQUEST => $method,
-            CURLOPT_POSTFIELDS => $body,
-            CURLOPT_SSL_VERIFYPEER => $verifyPeer,
-            CURLOPT_SSL_VERIFYHOST => $verifyHost,
-            CURLOPT_CAINFO => $caBundle ?: null,
-        ]);
-
-        $raw = curl_exec($ch);
-        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        $curlErr = curl_error($ch);
-        curl_close($ch);
-
-        if ($curlErr !== '') {
-            throw new RuntimeException('Stripe API call failed: ' . $curlErr);
-        }
-
-        $decoded = $raw !== false ? json_decode($raw, true) : null;
-        if ($httpCode >= 400) {
-            throw new RuntimeException($decoded['error']['message'] ?? 'Stripe API error.');
-        }
-
-        return $decoded ?? [];
-    };
-
-    try {
-        return $request(true, 2);
-    } catch (RuntimeException $e) {
-        $message = $e->getMessage();
-        if (stripos($message, 'SSL certificate problem') !== false || stripos($message, 'unable to get local issuer certificate') !== false) {
-            return $request(false, 0);
-        }
-
-        throw $e;
+    $ch = curl_init($url);
+    if ($ch === false) {
+        throw new RuntimeException('Unable to initialize cURL for Stripe API calls.');
     }
+    curl_setopt_array($ch, $options);
+
+    $raw = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $curlErr = curl_error($ch);
+    curl_close($ch);
+
+    if ($raw === false) {
+        throw new RuntimeException('Stripe API call failed: ' . $curlErr);
+    }
+
+    $decoded = json_decode($raw, true);
+    if ($httpCode >= 400) {
+        throw new RuntimeException($decoded['error']['message'] ?? ('Stripe API error (HTTP ' . $httpCode . ').'));
+    }
+
+    return is_array($decoded) ? $decoded : [];
 }
