@@ -5,6 +5,7 @@ require_once __DIR__ . '/../core/Database.php';
 require_once __DIR__ . '/../core/Validator.php';
 require_once __DIR__ . '/../core/Errors.php';
 require_once __DIR__ . '/../core/Cart.php';
+require_once __DIR__ . '/../core/OrderMailer.php';
 require_once __DIR__ . '/../config/stripe.php';
 
 Session::start();
@@ -190,12 +191,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['place_order'])) {
                     );
 
                     $conn->commit();
+
+                    // Confirmation email. The order is already safely committed,
+                    // so a slow or failing SMTP server can never lose it.
+                    OrderMailer::orderPlaced($db, $orderId);
+
                     header('Location: ' . $checkoutSession['url']);
                     exit;
                 }
 
                 $conn->commit();
                 Cart::clear($db);
+
+                // Confirmation email (never allowed to break the redirect).
+                OrderMailer::orderPlaced($db, $orderId);
+
                 Session::flash('success', 'Your order has been placed - thank you!');
                 header('Location: order-confirmation.php?order=' . urlencode($orderNumber));
                 exit;

@@ -127,6 +127,27 @@ the nucleo icon font, Chart.js, and the Bootstrap bundle - were copied into
 - **`core/Uploader.php`** - shared upload validation/saving used by both the
   category form (single file) and the product forms (staged multi-file), plus
   the safe recursive folder delete.
+- **Customer email** - `core/Mailer.php` (transport), `core/MailTemplates.php`
+  (the HTML/text bodies) and `core/OrderMailer.php` (decides which email an
+  event sends). PHPMailer 6.9.3 is vendored in `lib/phpmailer/` because the
+  project has no Composer. Settings come from the `MAIL_*` keys in `.env`
+  (`MAIL_HOST`, `MAIL_PORT`, `MAIL_USERNAME`, `MAIL_PASSWORD`,
+  `MAIL_ENCRYPTION`, `MAIL_FROM_ADDRESS`, `MAIL_FROM_NAME`) - for Gmail the
+  password must be an **App Password**, not the account password.
+
+  Emails are sent when an order is **placed**, when a payment is **received**
+  or **fails**, when an order is **shipped**, **delivered** or **cancelled**,
+  and on **new-account welcome**. Call sites just say what happened, e.g.
+  `OrderMailer::orderPlaced($db, $orderId)` - the class loads the customer and
+  line items itself, so a page can never mail stale data.
+
+  Safety rules, because an SMTP outage must never cost an order:
+  - nothing in the mail path throws - failures are caught, written to
+    `storage/mail.log` with the recipient masked, and reported as `false`;
+  - missing `MAIL_*` settings mean "skip sending", not a fatal error;
+  - mail is always sent **after** the order has been committed;
+  - reloading the confirmation page, or saving the admin order form without
+    changing anything, sends nothing at all.
 
 Every flow above was tested against a live MariaDB + PHP server before
 packaging: admin login (and rejection of a customer's login and of a wrong

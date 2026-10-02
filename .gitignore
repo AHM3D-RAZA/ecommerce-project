@@ -1,1 +1,4 @@
 .env
+
+# runtime mail log (keep the folder itself via storage/.gitkeep)
+storage/*.log

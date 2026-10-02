@@ -3,6 +3,7 @@ require_once __DIR__ . '/../core/Session.php';
 require_once __DIR__ . '/../core/Auth.php';
 require_once __DIR__ . '/../core/Database.php';
 require_once __DIR__ . '/../core/Cart.php';
+require_once __DIR__ . '/../core/OrderMailer.php';
 require_once __DIR__ . '/../config/stripe.php';
 
 Session::start();
@@ -49,9 +50,15 @@ if ($order['payment_method'] === 'stripe' && $order['payment_status'] === 'pendi
             $order['payment_status'] = 'completed';
             $order['transaction_id'] = $checkout['payment_intent'] ?? $checkout['id'];
             Cart::clear($db);
+
+            // Only reachable while the order is still pending, so reloading the
+            // confirmation page will not email the customer twice.
+            OrderMailer::paymentSettled($db, $order['id'], 'completed');
         } else {
             $db->run("UPDATE orders SET payment_status = 'failed' WHERE id = ?", [$order['id']]);
             $order['payment_status'] = 'failed';
+
+            OrderMailer::paymentSettled($db, $order['id'], 'failed');
         }
     } catch (Throwable $e) {
         // Leave it pending for manual review if Stripe cannot be validated.

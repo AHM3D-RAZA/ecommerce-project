@@ -38,13 +38,21 @@ class Cart
     {
         $statusSql = $onlyActive ? 'AND p.status = 1' : '';
 
-        return $db->select(
+        $items = $db->select(
             "SELECT p.id, p.name, p.slug, p.price, p.image, p.stock, c.quantity AS qty
              FROM cart c JOIN products p ON p.id = c.product_id
              WHERE c.cart_key = ? $statusSql
              ORDER BY c.id ASC",
             [self::key()]
         );
+
+        // Templates read a per-line total, so provide it here instead of making
+        // every consumer (cart page, cart dropdown, ...) recompute it.
+        foreach ($items as $i => $item) {
+            $items[$i]['line_total'] = (float) $item['price'] * (int) $item['qty'];
+        }
+
+        return $items;
     }
 
     // Unit count and value for a list from items().

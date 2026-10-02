@@ -4,6 +4,7 @@ require_once __DIR__ . '/../../core/Database.php';
 require_once __DIR__ . '/../../core/Helpers.php';
 require_once __DIR__ . '/../../core/ProductImages.php';
 require_once __DIR__ . '/../../core/Errors.php';
+require_once __DIR__ . '/../../core/OrderMailer.php';
 require_once __DIR__ . '/../../core/Session.php';
 Auth::requireAdmin('../login.php');
 
@@ -36,6 +37,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             "UPDATE orders SET order_status = ?, payment_status = ? WHERE id = ?",
             [$newStatus, $newPaymentStatus, $id]
         );
+
+        // $order still holds the values from before this POST, so anything that
+        // actually changed is emailed - saving the form untouched sends nothing.
+        OrderMailer::orderUpdated($db, $order['id'], $order['order_status'], $newStatus, $order['payment_status'], $newPaymentStatus);
+
         Session::flash('success', 'Order updated.');
         header('Location: view.php?id=' . $id);
         exit;
