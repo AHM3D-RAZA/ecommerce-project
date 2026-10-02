@@ -4,6 +4,7 @@ require_once __DIR__ . '/../core/Database.php';
 require_once __DIR__ . '/../core/Auth.php';
 require_once __DIR__ . '/../core/Helpers.php';
 require_once __DIR__ . '/../core/ProductImages.php';
+require_once __DIR__ . '/../core/Cart.php';
 Session::start();
 
 $db = new Database();
@@ -11,31 +12,12 @@ $db = new Database();
 // Categories for the nav menu - used on every page
 $navCategories = $db->select("SELECT id, name, slug FROM categories WHERE status = 1 ORDER BY name ASC");
 
-// Cart is kept in the session as [product_id => quantity]
-$cart = Session::get('cart', []);
-$cartItems = [];
-$cartTotal = 0;
-$cartCount = 0;
-
-if (!empty($cart)) {
-    $ids = array_map('intval', array_keys($cart));
-    $placeholders = implode(',', array_fill(0, count($ids), '?'));
-    $conn = $db->getConnection();
-    $stmt = $conn->prepare("SELECT id, name, slug, price, image, stock FROM products WHERE id IN ($placeholders)");
-    $types = str_repeat('i', count($ids));
-    $stmt->bind_param($types, ...$ids);
-    $stmt->execute();
-    $result = $stmt->get_result();
-
-    while ($row = $result->fetch_assoc()) {
-        $qty = (int) $cart[$row['id']];
-        $lineTotal = $row['price'] * $qty;
-        $cartTotal += $lineTotal;
-        $cartCount += $qty;
-        $cartItems[] = array_merge($row, ['qty' => $qty, 'line_total' => $lineTotal]);
-    }
-    $stmt->close();
-}
+// Cart lives in the cart table, keyed by this session's cart token. The rows
+// already carry everything the header needs (name, slug, price, image, qty).
+$cartItems = Cart::items($db);
+$cartSummary = Cart::summarise($cartItems);
+$cartTotal = $cartSummary['total'];
+$cartCount = $cartSummary['count'];
 
 $isLoggedIn = Auth::isLoggedIn();
 $userName = Auth::name();

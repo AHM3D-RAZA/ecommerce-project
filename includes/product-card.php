@@ -23,7 +23,8 @@ function render_product_card($p)
                 <?php if ((int) $p['stock'] === 0): ?>
                     <span class="btn-product btn-cart disabled"><span>out of stock</span></span>
                 <?php else: ?>
-                    <a href="cart.php?add=<?= (int) $p['id'] ?>" class="btn-product btn-cart"><span>add to cart</span></a>
+                    <a href="cart-action.php?op=add&amp;product_id=<?= (int) $p['id'] ?>&amp;qty=1"
+                       class="btn-product btn-cart" data-cart-add><span>add to cart</span></a>
                 <?php endif; ?>
             </div>
         </figure>

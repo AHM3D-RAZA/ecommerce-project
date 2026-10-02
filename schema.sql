@@ -49,7 +49,25 @@ CREATE TABLE products (
 ) ENGINE=InnoDB;
 
 -- ---------------------------------------------------------
--- 4. orders
+-- 4. cart
+-- ---------------------------------------------------------
+-- One row per product in a cart. cart_key is a random token stored in the
+-- visitor's session, so guests and signed-in customers behave identically and
+-- the cart survives signing in and out.
+CREATE TABLE cart (
+    id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    cart_key VARCHAR(64) NOT NULL,
+    product_id INT UNSIGNED NOT NULL,
+    quantity INT UNSIGNED NOT NULL DEFAULT 1,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY uniq_cart_item (cart_key, product_id),
+    KEY idx_cart_key (cart_key),
+    CONSTRAINT cart_fk_product FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+-- ---------------------------------------------------------
+-- 5. orders
 -- ---------------------------------------------------------
 CREATE TABLE orders (
     id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
@@ -66,7 +84,7 @@ CREATE TABLE orders (
 ) ENGINE=InnoDB;
 
 -- ---------------------------------------------------------
--- 5. order_items
+-- 6. order_items
 -- ---------------------------------------------------------
 CREATE TABLE order_items (
     id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,

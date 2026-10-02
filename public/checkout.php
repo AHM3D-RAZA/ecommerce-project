@@ -4,6 +4,7 @@ require_once __DIR__ . '/../core/Auth.php';
 require_once __DIR__ . '/../core/Database.php';
 require_once __DIR__ . '/../core/Validator.php';
 require_once __DIR__ . '/../core/Errors.php';
+require_once __DIR__ . '/../core/Cart.php';
 require_once __DIR__ . '/../config/stripe.php';
 
 Session::start();
@@ -11,31 +12,23 @@ Auth::requireLogin('login.php?redirect=checkout.php');
 
 $db = new Database();
 $userId = Auth::id();
-$cart = Session::get('cart', []);
 
+// Cart lines come from the cart table. OnlyActive means a product the admin
+// has hidden since it was added cannot be ordered.
+$cartLines = Cart::items($db, true);
 $cartItems = [];
 $cartTotal = 0.0;
 
-if (!empty($cart)) {
-    $ids = array_map('intval', array_keys($cart));
-    $placeholders = implode(',', array_fill(0, count($ids), '?'));
-    $conn = $db->getConnection();
-    $stmt = $conn->prepare("SELECT id, name, slug, price, stock FROM products WHERE id IN ($placeholders) AND status = 1");
-    $types = str_repeat('i', count($ids));
-    $stmt->bind_param($types, ...$ids);
-    $stmt->execute();
-    $result = $stmt->get_result();
+foreach ($cartLines as $line) {
+    $qty = min((int) $line['qty'], (int) $line['stock']);
 
-    while ($row = $result->fetch_assoc()) {
-        $qty = min((int) $cart[$row['id']], (int) $row['stock']);
-        if ($qty <= 0) {
-            continue;
-        }
-        $lineTotal = (float) $row['price'] * $qty;
-        $cartTotal += $lineTotal;
-        $cartItems[] = array_merge($row, ['qty' => $qty, 'line_total' => $lineTotal]);
+    if ($qty <= 0) {
+        continue;
     }
-    $stmt->close();
+
+    $lineTotal = (float) $line['price'] * $qty;
+    $cartTotal += $lineTotal;
+    $cartItems[] = array_merge($line, ['qty' => $qty, 'line_total' => $lineTotal]);
 }
 
 if (empty($cartItems)) {
@@ -202,7 +195,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['place_order'])) {
                 }
 
                 $conn->commit();
-                Session::set('cart', []);
+                Cart::clear($db);
                 Session::flash('success', 'Your order has been placed - thank you!');
                 header('Location: order-confirmation.php?order=' . urlencode($orderNumber));
                 exit;

@@ -107,6 +107,20 @@ the nucleo icon font, Chart.js, and the Bootstrap bundle - were copied into
   deleted. Every consumer - product cards, the product page gallery, the cart
   and its dropdown, admin product list, admin order items - goes through this
   helper instead of reading the column directly.
+- **`core/Cart.php`** (new) + the **`cart`** table - the cart is stored in the
+  database (one row per product) rather than in the session. Each browser gets a
+  random `cart_key` kept in its session, so guests and signed-in customers
+  behave identically and the cart survives signing in and out, exactly as it
+  did before. `Cart` owns adding, quantity changes (always clamped to real
+  stock), removing, clearing and the badge/dropdown totals; `checkout.php` only
+  reads products that are still visible, and the cart is emptied once an order
+  is placed.
+- **`public/cart-action.php`** (new) - the add-to-cart endpoint. **Add to Cart
+  never navigates away**: `assets/js/cart.js` posts the form in the background,
+  shows a toast to acknowledge it and updates the header cart count live. With
+  JavaScript off the same POST still works and returns you to the page you came
+  from - never the cart page. The `Referer` is only honoured when it points at
+  this same host, so it can't be used as an open redirect.
 - **`core/Helpers.php`** - `shop_image()` still resolves category images the
   same way it always has (uploaded path vs. seed path) on both the storefront
   and the admin side.
@@ -195,7 +209,8 @@ Once it's running at `http://localhost/ecommerce-project/public/`:
 - Use the search box in the header (desktop or mobile menu) - it searches
   product names and reuses the same `category.php` page.
 - Click any product to land on its detail page, change the quantity, and
-  hit **Add to Cart**.
+  hit **Add to Cart** - you stay on the page, a toast confirms it and the cart
+  badge in the header ticks up.
 - Click the cart icon (top right) to see the dropdown, or **View Cart** for
   the full cart page - change a quantity and click **Update Cart**, or
   remove an item with the X.

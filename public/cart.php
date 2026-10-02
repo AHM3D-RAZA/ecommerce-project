@@ -2,50 +2,24 @@
 require_once __DIR__ . '/../core/Session.php';
 require_once __DIR__ . '/../core/Database.php';
 require_once __DIR__ . '/../core/ProductImages.php';
+require_once __DIR__ . '/../core/Cart.php';
 Session::start();
 
 $db = new Database();
-$cart = Session::get('cart', []);
 
-// --- Add a product (from a product card or the product detail page) ---
-if (isset($_GET['add'])) {
-    $id = (int) $_GET['add'];
-    $qty = isset($_GET['qty']) ? max(1, (int) $_GET['qty']) : 1;
-
-    $product = $db->selectOne("SELECT id, stock FROM products WHERE id = ? AND status = 1", [$id]);
-
-    if ($product) {
-        $stock = (int) $product['stock'];
-        $currentQty = (int) ($cart[$id] ?? 0);
-        $newQty = min($currentQty + $qty, max($stock, 0));
-
-        if ($stock === 0) {
-            Session::flash('error', "Sorry, that item is out of stock.");
-        } elseif ($newQty <= 0) {
-            unset($cart[$id]);
-        } else {
-            $cart[$id] = $newQty;
-            Session::flash('success', 'Product added to your cart.');
-        }
-        Session::set('cart', $cart);
-    }
-
-    header('Location: cart.php');
-    exit;
-}
+// Adding to the cart lives in cart-action.php so the shopper is never
+// dragged to this page by the add-to-cart button.
 
 // --- Remove a single product ---
 if (isset($_GET['remove'])) {
-    $id = (int) $_GET['remove'];
-    unset($cart[$id]);
-    Session::set('cart', $cart);
+    Cart::remove($db, (int) $_GET['remove']);
     header('Location: cart.php');
     exit;
 }
 
 // --- Empty the whole cart ---
 if (isset($_GET['clear'])) {
-    Session::set('cart', []);
+    Cart::clear($db);
     header('Location: cart.php');
     exit;
 }
@@ -55,30 +29,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_cart'])) {
     $qtys = $_POST['qty'] ?? [];
 
     foreach ($qtys as $id => $qty) {
-        $id = (int) $id;
-        $qty = (int) $qty;
-
-        if (!isset($cart[$id])) {
-            continue;
-        }
-
-        if ($qty <= 0) {
-            unset($cart[$id]);
-            continue;
-        }
-
-        $product = $db->selectOne("SELECT stock FROM products WHERE id = ?", [$id]);
-        $stock = $product ? (int) $product['stock'] : 0;
-
-        if ($stock <= 0) {
-            // Sold out - don't let it sit in the cart at qty 1.
-            unset($cart[$id]);
-        } else {
-            $cart[$id] = min($qty, $stock);
-        }
+        Cart::setQuantity($db, (int) $id, (int) $qty);
     }
 
-    Session::set('cart', $cart);
     Session::flash('success', 'Cart updated.');
     header('Location: cart.php');
     exit;

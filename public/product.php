@@ -118,8 +118,9 @@ $heroUrl = $imageUrls[0];
                                     </div>
 
                                     <?php if ($inStock): ?>
-                                        <form action="cart.php" method="get" novalidate>
-                                            <input type="hidden" name="add" value="<?= (int) $product['id'] ?>">
+                                        <form action="cart-action.php" method="post" data-cart-add novalidate>
+                                            <input type="hidden" name="op" value="add">
+                                            <input type="hidden" name="product_id" value="<?= (int) $product['id'] ?>">
 
                                             <div class="details-filter-row details-row-size">
                                                 <label for="qty">Qty:</label>
