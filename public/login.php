@@ -2,6 +2,7 @@
 require_once __DIR__ . '/../core/Session.php';
 require_once __DIR__ . '/../core/Auth.php';
 require_once __DIR__ . '/../core/Validator.php';
+require_once __DIR__ . '/../core/Errors.php';
 Session::start();
 
 if (Auth::isLoggedIn()) {
@@ -9,7 +10,7 @@ if (Auth::isLoggedIn()) {
     exit;
 }
 
-$signinError = null;
+$signinErrors = [];
 $signinEmail = '';
 $redirect = trim($_GET['redirect'] ?? $_POST['redirect'] ?? '');
 // Only ever redirect to another page on this same site. Block anything with a
@@ -33,17 +34,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login'])) {
     $v->required($signinEmail, 'email')->email($signinEmail)->required($password, 'password');
 
     if ($v->fails()) {
-        $signinError = $v->first();
+        // Collect every problem so they can all be listed in one box.
+        $signinErrors = array_values($v->errors());
     } else {
         $auth = new Auth();
-        $result = $auth->login($signinEmail, $password);
+        $result = $auth->authenticate($signinEmail, $password);
 
-        if ($result['success']) {
+        if (isset($result['error'])) {
+            $signinErrors = [$result['error']];
+        } elseif ($result['user']['role'] === Auth::ADMIN) {
+            // Administrators run the store from the admin panel, so they never
+            // get a storefront session here - they need a customer account to
+            // shop. The credentials are valid, so sign them into the admin guard
+            // and send them straight to their dashboard.
+            $auth->establish($result['user'], Auth::ADMIN);
+            Session::flash('success', 'That is an administrator account - taking you to the admin dashboard.');
+            header('Location: ../admin/index.php');
+            exit;
+        } else {
+            $auth->establish($result['user'], Auth::CUSTOMER);
             header('Location: ' . $redirect);
             exit;
         }
-
-        $signinError = $result['message'];
     }
 }
 

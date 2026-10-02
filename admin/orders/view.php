@@ -2,6 +2,8 @@
 require_once __DIR__ . '/../../core/Auth.php';
 require_once __DIR__ . '/../../core/Database.php';
 require_once __DIR__ . '/../../core/Helpers.php';
+require_once __DIR__ . '/../../core/ProductImages.php';
+require_once __DIR__ . '/../../core/Errors.php';
 require_once __DIR__ . '/../../core/Session.php';
 Auth::requireAdmin('../login.php');
 
@@ -20,6 +22,8 @@ if (!$order) {
 }
 
 // Update order/payment status.
+$orderError = '';
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $newStatus = $_POST['order_status'] ?? '';
     $newPaymentStatus = $_POST['payment_status'] ?? '';
@@ -36,10 +40,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         header('Location: view.php?id=' . $id);
         exit;
     }
+
+    // Rejected server-side - say so instead of silently doing nothing.
+    $orderError = 'That order status or payment status is not valid. Please pick from the lists.';
 }
 
 $items = $db->select(
-    "SELECT oi.*, p.name, p.slug, p.image FROM order_items oi
+    "SELECT oi.*, p.id AS product_id, p.name, p.slug, p.image FROM order_items oi
      JOIN products p ON p.id = oi.product_id WHERE oi.order_id = ?",
     [$id]
 );
@@ -71,7 +78,7 @@ require_once __DIR__ . '/../../includes/admin-header.php';
                                 <tr>
                                     <td>
                                         <div class="d-flex px-2 py-1 align-items-center">
-                                            <img src="<?= htmlspecialchars('../../public/' . shop_image($item['image'])) ?>" width="40" height="40" style="object-fit: cover; border-radius: 6px;" class="me-2" alt="">
+                                            <img src="<?= htmlspecialchars('../../public/' . ProductImages::heroUrl(['id' => (int) $item['product_id'], 'image' => $item['image']])) ?>" width="40" height="40" style="object-fit: cover; border-radius: 6px;" class="me-2" alt="">
                                             <span class="text-sm font-weight-bold"><?= htmlspecialchars($item['name']) ?></span>
                                         </div>
                                     </td>
@@ -118,7 +125,9 @@ require_once __DIR__ . '/../../includes/admin-header.php';
                 <?php endif; ?>
                 <p class="text-sm">Placed: <?= date('d M Y, h:i A', strtotime($order['created_at'])) ?></p>
 
-                <form method="post" class="mt-3">
+                <?php render_error_summary($orderError ? [$orderError] : []); ?>
+
+                <form method="post" class="mt-3" novalidate>
                     <label class="form-label text-sm">Order Status</label>
                     <select name="order_status" class="form-control mb-3">
                         <?php foreach (['processing', 'shipped', 'delivered', 'cancelled'] as $s): ?>

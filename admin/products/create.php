@@ -3,6 +3,8 @@ require_once __DIR__ . '/../../core/Auth.php';
 require_once __DIR__ . '/../../core/Database.php';
 require_once __DIR__ . '/../../core/Helpers.php';
 require_once __DIR__ . '/../../core/Uploader.php';
+require_once __DIR__ . '/../../core/ProductImages.php';
+require_once __DIR__ . '/../../core/Errors.php';
 require_once __DIR__ . '/../../core/Session.php';
 require_once __DIR__ . '/../../core/Validator.php';
 Auth::requireAdmin('../login.php');
@@ -24,47 +26,91 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $v->required($form['name'], 'name')
       ->numeric($form['price'], 'price')
       ->required($form['price'], 'price')
-      ->numeric($form['stock'], 'stock');
+      ->numeric($form['stock'], 'stock')
+      ->required($form['stock'], 'stock');
 
     if ($form['category_id'] <= 0) {
         $errors['category_id'] = 'Please choose a category.';
     }
 
-    $upload = Uploader::save($_FILES['image'] ?? [], 'products');
-    if (!$upload['success'] && $upload['message']) {
-        $errors['image'] = $upload['message'];
-    } elseif (!$upload['success']) {
-        $errors['image'] = 'A product image is required.';
+    // Stage the multi-file upload first: original input order is preserved,
+    // empty slots are skipped and rejected files are reported (not dropped).
+    $stage = ProductImages::stageUploads($_FILES['images'] ?? [], ProductImages::MAX_IMAGES);
+    $imageMessages = $stage['errors'];
+
+    if ($stage['accepted'] === 0) {
+        $imageMessages[] = 'Please add at least one product image (JPG, PNG, WEBP or GIF, max 2MB each).';
     }
 
     if ($v->fails()) {
         $errors = array_merge($errors, $v->errors());
     }
 
-    if (empty($errors)) {
+    // A rejected file must not block the save as long as at least one image was
+    // accepted - the rejects are reported on the success message instead.
+    if (!empty($errors) || $stage['accepted'] === 0) {
+        // Nothing saved - throw away anything we staged.
+        ProductImages::discardStaged($stage);
+        $errors['image'] = $imageMessages;
+    } else {
         $slug = make_slug($form['name']);
-        $existing = $db->selectOne("SELECT id FROM products WHERE slug = ?", [$slug]);
-        if ($existing) {
+        if ($db->selectOne("SELECT id FROM products WHERE slug = ?", [$slug])) {
             $slug .= '-' . time();
         }
 
-        $db->insert(
-            "INSERT INTO products (category_id, name, slug, description, price, stock, image, status)
-             VALUES (?, ?, ?, ?, ?, ?, ?, 1)",
-            [
-                $form['category_id'],
-                $form['name'],
-                $slug,
-                $form['description'],
-                (float) $form['price'],
-                (int) ($form['stock'] !== '' ? $form['stock'] : 0),
-                $upload['path'],
-            ]
-        );
+        // Create the row, then move the staged files into uploads/products/{id}/.
+        // All of it runs in one transaction so a failure leaves no half-saved
+        // product and no orphaned files behind.
+        $conn = $db->getConnection();
+        $conn->begin_transaction();
+        $productId = null;
 
-        Session::flash('success', 'Product added.');
-        header('Location: index.php');
-        exit;
+        try {
+            $productId = $db->insert(
+                "INSERT INTO products (category_id, name, slug, description, price, stock, image, status)
+                 VALUES (?, ?, ?, ?, ?, ?, '[]', 1)",
+                [
+                    $form['category_id'],
+                    $form['name'],
+                    $slug,
+                    $form['description'],
+                    (float) $form['price'],
+                    (int) ($form['stock'] !== '' ? $form['stock'] : 0),
+                ]
+            );
+
+            $stored = [];
+            foreach ($stage['staged'] as $index => $stagedName) {
+                $final = ProductImages::moveStagedIntoProduct($stagedName, $productId, $stage['originals'][$index] ?? null);
+                if ($final === null) {
+                    throw new RuntimeException('Could not move an uploaded image into place.');
+                }
+                $stored[] = $final;
+            }
+
+            if (empty($stored)) {
+                throw new RuntimeException('No images were stored.');
+            }
+
+            $db->run("UPDATE products SET image = ? WHERE id = ?", [ProductImages::encode($stored), $productId]);
+
+            $conn->commit();
+
+            $message = 'Product added.';
+            if ($stage['skipped'] > 0) {
+                $message .= ' ' . $stage['skipped'] . ' file(s) skipped: ' . implode(' ', $imageMessages);
+            }
+            Session::flash('success', $message);
+            header('Location: index.php');
+            exit;
+        } catch (Throwable $e) {
+            $conn->rollback();
+            ProductImages::discardStaged($stage);
+            if ($productId !== null) {
+                ProductImages::deleteProductFolder($productId);
+            }
+            $errors['image'] = ['Could not save the product images. Please try again.'];
+        }
     }
 }
 
@@ -80,12 +126,13 @@ require_once __DIR__ . '/../../includes/admin-header.php';
                 <h6>Add Product</h6>
             </div>
             <div class="card-body">
-                <form method="post" enctype="multipart/form-data">
+                <?php render_error_summary($errors); ?>
+
+                <form method="post" enctype="multipart/form-data" novalidate>
                     <div class="input-group input-group-outline mb-3">
                         <label class="form-label">Product Name</label>
-                        <input type="text" name="name" class="form-control" value="<?= htmlspecialchars($form['name']) ?>" required>
+                        <input type="text" name="name" class="form-control" value="<?= htmlspecialchars($form['name']) ?>">
                     </div>
-                    <?php if (isset($errors['name'])): ?><p class="text-danger text-xs"><?= htmlspecialchars($errors['name']) ?></p><?php endif; ?>
 
                     <label class="form-label">Category</label>
                     <select name="category_id" class="form-control mb-3">
@@ -94,32 +141,28 @@ require_once __DIR__ . '/../../includes/admin-header.php';
                             <option value="<?= (int) $c['id'] ?>" <?= $form['category_id'] == $c['id'] ? 'selected' : '' ?>><?= htmlspecialchars($c['name']) ?></option>
                         <?php endforeach; ?>
                     </select>
-                    <?php if (isset($errors['category_id'])): ?><p class="text-danger text-xs"><?= htmlspecialchars($errors['category_id']) ?></p><?php endif; ?>
 
                     <div class="row">
                         <div class="col-md-6">
                             <div class="input-group input-group-outline mb-3">
                                 <label class="form-label">Price ($)</label>
-                                <input type="text" name="price" class="form-control" value="<?= htmlspecialchars($form['price']) ?>" required>
+                                <input type="text" name="price" class="form-control" value="<?= htmlspecialchars($form['price']) ?>">
                             </div>
-                            <?php if (isset($errors['price'])): ?><p class="text-danger text-xs"><?= htmlspecialchars($errors['price']) ?></p><?php endif; ?>
                         </div>
                         <div class="col-md-6">
                             <div class="input-group input-group-outline mb-3">
                                 <label class="form-label">Stock Quantity</label>
-                                <input type="text" name="stock" class="form-control" value="<?= htmlspecialchars($form['stock']) ?>" required>
+                                <input type="text" name="stock" class="form-control" value="<?= htmlspecialchars($form['stock']) ?>">
                             </div>
-                            <?php if (isset($errors['stock'])): ?><p class="text-danger text-xs"><?= htmlspecialchars($errors['stock']) ?></p><?php endif; ?>
                         </div>
                     </div>
 
                     <label class="form-label">Description</label>
                     <textarea name="description" class="form-control mb-3" rows="4"><?= htmlspecialchars($form['description']) ?></textarea>
 
-                    <label class="form-label">Product Image</label>
-                    <input type="file" name="image" class="form-control mb-1" accept="image/*">
-                    <p class="text-xs text-secondary">JPG, PNG, WEBP or GIF. Max 2MB.</p>
-                    <?php if (isset($errors['image'])): ?><p class="text-danger text-xs"><?= htmlspecialchars($errors['image']) ?></p><?php endif; ?>
+                    <label class="form-label">Product Images (up to <?= ProductImages::MAX_IMAGES ?>)</label>
+                    <input type="file" name="images[]" class="form-control mb-1" accept="image/*" multiple>
+                    <p class="text-xs text-secondary">JPG, PNG, WEBP or GIF. Max 2MB each. The first image is the thumbnail.</p>
 
                     <div class="mt-4">
                         <button type="submit" class="btn bg-gradient-dark">Save Product</button>

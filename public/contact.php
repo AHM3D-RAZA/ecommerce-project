@@ -2,9 +2,10 @@
 require_once __DIR__ . '/../core/Session.php';
 require_once __DIR__ . '/../core/Database.php';
 require_once __DIR__ . '/../core/Validator.php';
+require_once __DIR__ . '/../core/Errors.php';
 Session::start();
 
-$contactError = null;
+$contactErrors = [];
 $old = ['name' => '', 'email' => '', 'subject' => '', 'message' => ''];
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['send_message'])) {
@@ -19,7 +20,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['send_message'])) {
       ->required($old['message'], 'message');
 
     if ($v->fails()) {
-        $contactError = $v->first();
+        // Collect every problem so they can all be listed in one box.
+        $contactErrors = array_values($v->errors());
     } else {
         // Demo store: no mail server configured, so acknowledge the message instead of sending it.
         Session::flash('success', 'Thank you for reaching out! We will get back to you at ' . $old['email'] . ' shortly.');
@@ -49,9 +51,7 @@ require_once __DIR__ . '/../includes/header.php';
 
             <div class="page-content pb-5">
                 <div class="container">
-                    <?php if ($contactError): ?>
-                        <div class="alert alert-danger"><?= htmlspecialchars($contactError) ?></div>
-                    <?php endif; ?>
+                    <?php render_error_summary($contactErrors); ?>
 
                     <div class="row">
                         <div class="col-lg-4 mb-4 mb-lg-0">
@@ -93,23 +93,23 @@ require_once __DIR__ . '/../includes/header.php';
                         <div class="col-lg-8">
                             <h2 class="title mb-3">Send Us a Message</h2>
 
-                            <form action="contact.php" method="post">
+                            <form action="contact.php" method="post" novalidate>
                                 <div class="row">
                                     <div class="col-md-6">
                                         <label for="contact-name" class="sr-only">Your name *</label>
-                                        <input type="text" class="form-control mb-2" id="contact-name" name="name" placeholder="Your name *" value="<?= htmlspecialchars($old['name']) ?>" required>
+                                        <input type="text" class="form-control mb-2" id="contact-name" name="name" placeholder="Your name *" value="<?= htmlspecialchars($old['name']) ?>">
                                     </div>
                                     <div class="col-md-6">
                                         <label for="contact-email" class="sr-only">Your email *</label>
-                                        <input type="email" class="form-control mb-2" id="contact-email" name="email" placeholder="Your email *" value="<?= htmlspecialchars($old['email']) ?>" required>
+                                        <input type="email" class="form-control mb-2" id="contact-email" name="email" placeholder="Your email *" value="<?= htmlspecialchars($old['email']) ?>">
                                     </div>
                                 </div>
 
                                 <label for="contact-subject" class="sr-only">Subject *</label>
-                                <input type="text" class="form-control mb-2" id="contact-subject" name="subject" placeholder="Subject *" value="<?= htmlspecialchars($old['subject']) ?>" required>
+                                <input type="text" class="form-control mb-2" id="contact-subject" name="subject" placeholder="Subject *" value="<?= htmlspecialchars($old['subject']) ?>">
 
                                 <label for="contact-message" class="sr-only">Message *</label>
-                                <textarea class="form-control mb-3" id="contact-message" name="message" cols="30" rows="6" placeholder="Message *" required><?= htmlspecialchars($old['message']) ?></textarea>
+                                <textarea class="form-control mb-3" id="contact-message" name="message" cols="30" rows="6" placeholder="Message *"><?= htmlspecialchars($old['message']) ?></textarea>
 
                                 <button type="submit" name="send_message" value="1" class="btn btn-primary btn-round">
                                     <span>Send Message</span><i class="icon-long-arrow-right"></i>

@@ -1,8 +1,14 @@
 <?php
+require_once __DIR__ . '/../core/Errors.php';
+
 // Shared by login.php and register.php so both pages render the same
 // Sign In / Register tab box - just with a different tab pre-opened.
 $activeTab = $activeTab ?? 'signin';
 $signinActive = $activeTab === 'signin';
+
+// Each page collects its own list of validation problems.
+$signinErrors = $signinErrors ?? [];
+$registerErrors = $registerErrors ?? [];
 ?>
             <div class="login-page bg-image pt-8 pb-8 pt-md-12 pb-md-12 pt-lg-17 pb-lg-17" style="background-image: url('assets/images/backgrounds/login-bg.jpg')">
                 <div class="container">
@@ -18,21 +24,19 @@ $signinActive = $activeTab === 'signin';
                             </ul>
                             <div class="tab-content">
                                 <div class="tab-pane fade<?= $signinActive ? ' show active' : '' ?>" id="signin-2" role="tabpanel" aria-labelledby="signin-tab-2">
-                                    <?php if (!empty($signinError)): ?>
-                                        <div class="alert alert-danger"><?= htmlspecialchars($signinError) ?></div>
-                                    <?php endif; ?>
-                                    <form action="login.php" method="post">
+                                    <?php render_error_summary($signinErrors); ?>
+                                    <form action="login.php" method="post" novalidate>
                                         <?php if (!empty($redirect)): ?>
                                             <input type="hidden" name="redirect" value="<?= htmlspecialchars($redirect) ?>">
                                         <?php endif; ?>
                                         <div class="form-group">
                                             <label for="signin-email-2">Email address *</label>
-                                            <input type="email" class="form-control" id="signin-email-2" name="email" value="<?= htmlspecialchars($signinEmail ?? '') ?>" required>
+                                            <input type="email" class="form-control" id="signin-email-2" name="email" value="<?= htmlspecialchars($signinEmail ?? '') ?>">
                                         </div><!-- End .form-group -->
 
                                         <div class="form-group">
                                             <label for="signin-password-2">Password *</label>
-                                            <input type="password" class="form-control" id="signin-password-2" name="password" required>
+                                            <input type="password" class="form-control" id="signin-password-2" name="password">
                                         </div><!-- End .form-group -->
 
                                         <div class="form-footer">
@@ -45,28 +49,26 @@ $signinActive = $activeTab === 'signin';
                                 </div><!-- .End .tab-pane -->
 
                                 <div class="tab-pane fade<?= $signinActive ? '' : ' show active' ?>" id="register-2" role="tabpanel" aria-labelledby="register-tab-2">
-                                    <?php if (!empty($registerError)): ?>
-                                        <div class="alert alert-danger"><?= htmlspecialchars($registerError) ?></div>
-                                    <?php endif; ?>
-                                    <form action="register.php" method="post">
+                                    <?php render_error_summary($registerErrors); ?>
+                                    <form action="register.php" method="post" novalidate>
                                         <div class="form-group">
                                             <label for="register-name-2">Your name *</label>
-                                            <input type="text" class="form-control" id="register-name-2" name="name" value="<?= htmlspecialchars($registerName ?? '') ?>" required>
+                                            <input type="text" class="form-control" id="register-name-2" name="name" value="<?= htmlspecialchars($registerName ?? '') ?>">
                                         </div><!-- End .form-group -->
 
                                         <div class="form-group">
                                             <label for="register-email-2">Your email address *</label>
-                                            <input type="email" class="form-control" id="register-email-2" name="email" value="<?= htmlspecialchars($registerEmail ?? '') ?>" required>
+                                            <input type="email" class="form-control" id="register-email-2" name="email" value="<?= htmlspecialchars($registerEmail ?? '') ?>">
                                         </div><!-- End .form-group -->
 
                                         <div class="form-group">
                                             <label for="register-password-2">Password *</label>
-                                            <input type="password" class="form-control" id="register-password-2" name="password" required>
+                                            <input type="password" class="form-control" id="register-password-2" name="password">
                                         </div><!-- End .form-group -->
 
                                         <div class="form-group">
                                             <label for="register-password-confirm-2">Confirm password *</label>
-                                            <input type="password" class="form-control" id="register-password-confirm-2" name="password_confirm" required>
+                                            <input type="password" class="form-control" id="register-password-confirm-2" name="password_confirm">
                                         </div><!-- End .form-group -->
 
                                         <div class="form-footer">

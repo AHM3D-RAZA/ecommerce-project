@@ -8,7 +8,7 @@ Session::start();
 Auth::requireLogin('login.php');
 
 $db = new Database();
-$userId = Session::get('user_id');
+$userId = Auth::id();
 $orderNumber = trim($_GET['order'] ?? '');
 
 $order = $orderNumber !== '' ? $db->selectOne(

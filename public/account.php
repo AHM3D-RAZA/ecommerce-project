@@ -3,14 +3,15 @@ require_once __DIR__ . '/../core/Session.php';
 require_once __DIR__ . '/../core/Auth.php';
 require_once __DIR__ . '/../core/Database.php';
 require_once __DIR__ . '/../core/Validator.php';
+require_once __DIR__ . '/../core/Errors.php';
 Session::start();
 Auth::requireLogin('login.php?redirect=account.php');
 
 $db = new Database();
-$userId = Session::get('user_id');
+$userId = Auth::id();
 
 // --- Update account details (name / email / optional password change) ---
-$accountError = null;
+$accountErrors = [];
 $accountSuccess = null;
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_account'])) {
@@ -23,19 +24,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_account'])) {
     $v = new Validator();
     $v->required($name, 'name')->required($email, 'email')->email($email);
 
-    if ($v->fails()) {
-        $accountError = $v->first();
-    } elseif ($db->selectOne("SELECT id FROM users WHERE email = ? AND id != ?", [$email, $userId])) {
-        $accountError = 'That email address is already in use by another account.';
-    } elseif ($newPassword !== '' && strlen($newPassword) < 6) {
-        $accountError = 'New password must be at least 6 characters.';
-    } elseif ($newPassword !== '' && $newPassword !== $newPasswordConfirm) {
-        $accountError = 'New passwords do not match.';
-    } else {
+    // Collect every problem so they can all be listed in one box.
+    $accountErrors = array_values($v->errors());
+
+    if (empty($accountErrors) && $db->selectOne("SELECT id FROM users WHERE email = ? AND id != ?", [$email, $userId])) {
+        $accountErrors[] = 'That email address is already in use by another account.';
+    }
+
+    if (empty($accountErrors) && $newPassword !== '' && strlen($newPassword) < 6) {
+        $accountErrors[] = 'New password must be at least 6 characters.';
+    }
+
+    if (empty($accountErrors) && $newPassword !== '' && $newPassword !== $newPasswordConfirm) {
+        $accountErrors[] = 'New passwords do not match.';
+    }
+
+    if (empty($accountErrors)) {
         $currentUser = $db->selectOne("SELECT password FROM users WHERE id = ?", [$userId]);
 
         if ($newPassword !== '' && !password_verify($currentPassword, $currentUser['password'])) {
-            $accountError = 'Current password is incorrect.';
+            $accountErrors[] = 'Current password is incorrect.';
         } else {
             if ($newPassword !== '') {
                 $db->run(
@@ -46,7 +54,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_account'])) {
                 $db->run("UPDATE users SET name = ?, email = ? WHERE id = ?", [$name, $email, $userId]);
             }
 
-            Session::set('user_name', $name);
+            Auth::updateName($name);
             $accountSuccess = 'Your account details have been updated.';
         }
     }
@@ -140,18 +148,16 @@ require_once __DIR__ . '/../includes/header.php';
                                     </div><!-- .End .tab-pane -->
 
                                     <div class="tab-pane fade" id="tab-account" role="tabpanel" aria-labelledby="tab-account-link">
-                                        <?php if ($accountError): ?>
-                                            <div class="alert alert-danger"><?= htmlspecialchars($accountError) ?></div>
-                                        <?php endif; ?>
+                                        <?php render_error_summary($accountErrors); ?>
                                         <?php if ($accountSuccess): ?>
                                             <div class="alert alert-primary"><?= htmlspecialchars($accountSuccess) ?></div>
                                         <?php endif; ?>
-                                        <form action="account.php#tab-account" method="post">
+                                        <form action="account.php#tab-account" method="post" novalidate>
                                             <label>Full name *</label>
-                                            <input type="text" class="form-control" name="name" value="<?= htmlspecialchars($user['name']) ?>" required>
+                                            <input type="text" class="form-control" name="name" value="<?= htmlspecialchars($user['name']) ?>">
 
                                             <label>Email address *</label>
-                                            <input type="email" class="form-control" name="email" value="<?= htmlspecialchars($user['email']) ?>" required>
+                                            <input type="email" class="form-control" name="email" value="<?= htmlspecialchars($user['email']) ?>">
 
                                             <label>Current password (leave blank to leave unchanged)</label>
                                             <input type="password" class="form-control" name="current_password">

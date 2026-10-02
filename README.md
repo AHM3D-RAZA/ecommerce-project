@@ -16,7 +16,10 @@ browsing + cart experience. Phase 3 adds customer accounts and checkout:
   validation, duplicate-email checking, wrong-password handling, and a
   `?redirect=` param so checkout can send you to sign in and land you right
   back on checkout afterwards.
-- **`public/logout.php`** - destroys the session and sends you home.
+- **`public/logout.php`** - signs you out of the storefront and sends you
+  home. The storefront and the admin panel keep independent logins (Auth
+  "guards"), so signing out of one never signs you out of the other, and an
+  admin and a customer can be signed in at the same time.
 - **`public/account.php`** - converted from `dashboard.html`. Three tabs:
   Dashboard (welcome message), Orders (your real order history from the
   `orders` table, with a link to each order's confirmation page), and
@@ -48,10 +51,17 @@ Only the template files actually used - `material-dashboard.min.css`,
 the nucleo icon font, Chart.js, and the Bootstrap bundle - were copied into
 `admin/assets/`, not the full template package with its demo pages.
 
-- **`admin/login.php`** - a separate sign-in screen for staff. Uses the same
-  `Auth::login()` as the storefront, but then checks the account's role is
-  `admin`; if a customer's credentials are entered here they're logged back
-  out immediately with "This login is for administrators only."
+- **`admin/login.php`** - a separate sign-in screen for staff. It calls
+  `Auth::authenticate()` to check the credentials *without* writing a
+  session, then only calls `Auth::establish($user, 'admin')` if the account's
+  role is `admin`; a customer's credentials entered here are refused with
+  "This login is for administrators only." and nothing is written to the
+  session, so a customer signed in on the storefront keeps their login. The
+  reverse is true too: an administrator who types their admin credentials into
+  `public/login.php` never gets a storefront session - they are signed into the
+  admin guard and redirected straight to `admin/index.php` with a notice. To
+  shop, an admin needs a customer account like everyone else.
+  `admin/logout.php` signs out only the admin.
 - **`admin/index.php`** - dashboard home: live counts of products,
   categories, customers, orders and total revenue, a 6-month sales chart,
   a "low stock" list (5 units or fewer), and the 8 most recent orders.
@@ -60,11 +70,22 @@ the nucleo icon font, Chart.js, and the Bootstrap bundle - were copied into
   check, 2MB limit, random file name) into `public/uploads/categories/`.
   Deleting a category that still has products under it is blocked with an
   explanation instead of silently cascading.
-- **`admin/products/`** - full CRUD with the same image-upload handling,
-  plus search-by-name and filter-by-category on the list page. Deleting a
-  product that already appears in a placed order is blocked (it can be
-  hidden via the status toggle instead) since order history has to stay
-  intact.
+- **`admin/products/`** - full CRUD plus search-by-name and
+  filter-by-category on the list page. Images are a **gallery of up to 5**:
+  `create.php` stages the picked files, creates the product row to get its id,
+  then moves the files into `public/uploads/products/{id}/` and saves the
+  ordered filename list. `edit.php` shows the current images in a reorderable
+  strip (each card has move up/down and remove), accepts ordered
+  `existing:<file>` / `new:<n>` tokens, keeps and reorders what was kept, adds
+  the new files, and deletes the files that were dropped from the list. The cap
+  on an edit is the *remaining* room (`max - existing`), so the error reads
+  "You can add 2 more (limit 5)" rather than a confusing "at most 5". Rejected
+  files (wrong type, too large, over the cap) are counted and reported instead
+  of being silently dropped, and empty input slots are skipped while every file
+  keeps its own position. Deleting a product removes its whole
+  `uploads/products/{id}/` folder so nothing is orphaned; a product that
+  already appears in a placed order is blocked (hide it via the status toggle
+  instead) since order history has to stay intact.
 - **`admin/users/index.php`** - every registered user, with a one-click
   active/inactive toggle (an admin can't deactivate their own account by
   mistake). Deactivated customers are rejected at login by the existing
@@ -77,13 +98,21 @@ the nucleo icon font, Chart.js, and the Bootstrap bundle - were copied into
 - **`admin/reports.php`** - weekly (last 7 days), monthly (this calendar
   year) and yearly sales, each as a bar chart plus the raw numbers in a
   table, using the exact grouping queries from the project brief.
-- **`core/Helpers.php`** (new) - `shop_image()` is used everywhere a
-  product/category image is printed, on both the storefront and the admin
-  side, so images added through the admin upload form and the original
-  seed images (which live under `public/assets/images/demos/demo-4/`) both
-  render correctly without the templates needing to know which is which.
-- **`core/Uploader.php`** (new) - shared upload validation/saving used by
-  both the category and product forms.
+- **`core/ProductImages.php`** (new) - the single place that knows about
+  product images. It decodes/encodes the JSON array in `products.image`,
+  returns the first image (the hero/thumbnail), builds filesystem paths and
+  public URLs from the product id + the `rawurlencode()`d filename, and lists
+  the files currently in a product's folder. Bundled seed images (which live
+  under `public/assets/images/demos/demo-4/`) are stored as paths and are never
+  deleted. Every consumer - product cards, the product page gallery, the cart
+  and its dropdown, admin product list, admin order items - goes through this
+  helper instead of reading the column directly.
+- **`core/Helpers.php`** - `shop_image()` still resolves category images the
+  same way it always has (uploaded path vs. seed path) on both the storefront
+  and the admin side.
+- **`core/Uploader.php`** - shared upload validation/saving used by both the
+  category form (single file) and the product forms (staged multi-file), plus
+  the safe recursive folder delete.
 
 Every flow above was tested against a live MariaDB + PHP server before
 packaging: admin login (and rejection of a customer's login and of a wrong
@@ -196,9 +225,9 @@ Once it's running at `http://localhost/ecommerce-project/public/`:
 ## Test logins (already seeded)
 
 - **Admin:** admin@shop.com / admin123 - sign in at `admin/login.php` for
-  the dashboard. (This account can also sign in on the storefront at
-  `public/login.php` and shop like any customer, since it's still a row in
-  the same `users` table.)
+  the dashboard. This account cannot shop on the storefront: typing it into
+  `public/login.php` never creates a customer session, it just redirects you
+  to the admin dashboard.
 - **Customer:** customer@shop.com / customer123
 
 ## Things to try in the admin dashboard

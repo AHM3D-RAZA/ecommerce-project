@@ -3,13 +3,14 @@ require_once __DIR__ . '/../core/Session.php';
 require_once __DIR__ . '/../core/Auth.php';
 require_once __DIR__ . '/../core/Database.php';
 require_once __DIR__ . '/../core/Validator.php';
+require_once __DIR__ . '/../core/Errors.php';
 require_once __DIR__ . '/../config/stripe.php';
 
 Session::start();
 Auth::requireLogin('login.php?redirect=checkout.php');
 
 $db = new Database();
-$userId = Session::get('user_id');
+$userId = Auth::id();
 $cart = Session::get('cart', []);
 
 $cartItems = [];
@@ -46,7 +47,7 @@ if (empty($cartItems)) {
 $user = $db->selectOne('SELECT name, email FROM users WHERE id = ?', [$userId]);
 $nameParts = explode(' ', $user['name'], 2);
 
-$checkoutError = null;
+$checkoutErrors = [];
 
 // Coming back from Stripe's page via "Back"/"Cancel": the order was saved before
 // redirecting, so release its stock and mark it failed. The cart is untouched.
@@ -71,7 +72,7 @@ if (isset($_GET['cancel'], $_GET['order'])) {
         }
     }
 
-    $checkoutError = 'Payment was cancelled, so your order was not placed. Your cart is still here if you want to try again.';
+    $checkoutErrors[] = 'Payment was cancelled, so your order was not placed. Your cart is still here if you want to try again.';
 }
 
 $old = [
@@ -104,10 +105,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['place_order'])) {
       ->required($old['email'], 'email address')->email($old['email'], 'email address');
 
     if (!in_array($paymentMethod, ['cod', 'stripe'], true)) {
-        $checkoutError = 'Please choose a payment method.';
-    } elseif ($v->fails()) {
-        $checkoutError = $v->first();
-    } else {
+        $checkoutErrors[] = 'Please choose a payment method.';
+    }
+
+    // Collect every field problem so they can all be listed in one box.
+    foreach ($v->errors() as $message) {
+        $checkoutErrors[] = $message;
+    }
+
+    if (empty($checkoutErrors)) {
         $stockOk = true;
         foreach ($cartItems as $item) {
             $fresh = $db->selectOne('SELECT stock FROM products WHERE id = ?', [$item['id']]);
@@ -118,7 +124,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['place_order'])) {
         }
 
         if (!$stockOk) {
-            $checkoutError = 'Sorry, one of the items in your cart just sold out. Please review your cart and try again.';
+            $checkoutErrors[] = 'Sorry, one of the items in your cart just sold out. Please review your cart and try again.';
         } else {
             $conn = $db->getConnection();
             $conn->begin_transaction();
@@ -203,9 +209,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['place_order'])) {
             } catch (Throwable $e) {
                 $conn->rollback();
                 error_log('Checkout failed: ' . $e->getMessage());
-                $checkoutError = 'Sorry, we could not complete your checkout. Please try again.';
+                $checkoutErrors[] = 'Sorry, we could not complete your checkout. Please try again.';
                 if (Env::bool('APP_DEBUG')) {
-                    $checkoutError .= ' (' . $e->getMessage() . ')';
+                    $checkoutErrors[] = $e->getMessage();
                 }
             }
         }
@@ -234,55 +240,53 @@ require_once __DIR__ . '/../includes/header.php';
             <div class="page-content">
                 <div class="checkout">
                     <div class="container">
-                        <?php if ($checkoutError): ?>
-                            <div class="alert alert-danger"><?= htmlspecialchars($checkoutError) ?></div>
-                        <?php endif; ?>
+                        <?php render_error_summary($checkoutErrors); ?>
 
-                        <form action="checkout.php" method="post" id="checkout-form">
+                        <form action="checkout.php" method="post" id="checkout-form" novalidate>
                             <div class="row">
                                 <div class="col-lg-9">
                                     <h2 class="checkout-title">Billing Details</h2>
                                     <div class="row">
                                         <div class="col-sm-6">
                                             <label>First Name *</label>
-                                            <input type="text" class="form-control" name="first_name" value="<?= htmlspecialchars($old['first_name']) ?>" required>
+                                            <input type="text" class="form-control" name="first_name" value="<?= htmlspecialchars($old['first_name']) ?>">
                                         </div>
 
                                         <div class="col-sm-6">
                                             <label>Last Name *</label>
-                                            <input type="text" class="form-control" name="last_name" value="<?= htmlspecialchars($old['last_name']) ?>" required>
+                                            <input type="text" class="form-control" name="last_name" value="<?= htmlspecialchars($old['last_name']) ?>">
                                         </div>
                                     </div>
 
                                     <label>Street address *</label>
-                                    <input type="text" class="form-control" name="address" placeholder="House number and street name" value="<?= htmlspecialchars($old['address']) ?>" required>
+                                    <input type="text" class="form-control" name="address" placeholder="House number and street name" value="<?= htmlspecialchars($old['address']) ?>">
 
                                     <div class="row">
                                         <div class="col-sm-6">
                                             <label>Town / City *</label>
-                                            <input type="text" class="form-control" name="city" value="<?= htmlspecialchars($old['city']) ?>" required>
+                                            <input type="text" class="form-control" name="city" value="<?= htmlspecialchars($old['city']) ?>">
                                         </div>
 
                                         <div class="col-sm-6">
                                             <label>State / County *</label>
-                                            <input type="text" class="form-control" name="state" value="<?= htmlspecialchars($old['state']) ?>" required>
+                                            <input type="text" class="form-control" name="state" value="<?= htmlspecialchars($old['state']) ?>">
                                         </div>
                                     </div>
 
                                     <div class="row">
                                         <div class="col-sm-6">
                                             <label>Postcode / ZIP *</label>
-                                            <input type="text" class="form-control" name="zip" value="<?= htmlspecialchars($old['zip']) ?>" required>
+                                            <input type="text" class="form-control" name="zip" value="<?= htmlspecialchars($old['zip']) ?>">
                                         </div>
 
                                         <div class="col-sm-6">
                                             <label>Phone *</label>
-                                            <input type="tel" class="form-control" name="phone" value="<?= htmlspecialchars($old['phone']) ?>" required>
+                                            <input type="tel" class="form-control" name="phone" value="<?= htmlspecialchars($old['phone']) ?>">
                                         </div>
                                     </div>
 
                                     <label>Email address *</label>
-                                    <input type="email" class="form-control" name="email" value="<?= htmlspecialchars($old['email']) ?>" required>
+                                    <input type="email" class="form-control" name="email" value="<?= htmlspecialchars($old['email']) ?>">
 
                                     <label>Order notes (optional)</label>
                                     <textarea class="form-control" name="notes" cols="30" rows="4" placeholder="Notes about your order, e.g. special notes for delivery"><?= htmlspecialchars($old['notes']) ?></textarea>
@@ -384,6 +388,10 @@ require_once __DIR__ . '/../includes/header.php';
             .checkout-place-order:hover .btn-text,
             .checkout-place-order:focus .btn-text,
             .checkout-place-order:active .btn-text {
+                /* The theme hides .btn-text on hover - that is for buttons that
+                   swap in a .btn-hover-text sibling. This button has no alternate
+                   label, so keep the label visible instead of blanking it out. */
+                display: inline-block !important;
                 color: #fff !important;
             }
         </style>

@@ -99,9 +99,9 @@
         <div class="mobile-menu-wrapper">
             <span class="mobile-menu-close"><i class="icon-close"></i></span>
 
-            <form action="category.php" method="get" class="mobile-search">
+            <form action="category.php" method="get" class="mobile-search" novalidate>
                 <label for="mobile-search" class="sr-only">Search</label>
-                <input type="search" class="form-control" name="q" id="mobile-search" placeholder="Search product ..." required>
+                <input type="search" class="form-control" name="q" id="mobile-search" placeholder="Search product ...">
                 <button class="btn btn-primary" type="submit"><i class="icon-search"></i></button>
             </form>
 

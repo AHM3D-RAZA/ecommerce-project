@@ -2,9 +2,11 @@
 // Same product-card markup gets reused on the homepage, category page
 // and the "You may also like" strip on the product page, so it lives
 // here once instead of being copy-pasted everywhere.
+require_once __DIR__ . '/../core/ProductImages.php';
+
 function render_product_card($p)
 {
-    $img = htmlspecialchars(shop_image($p['image']));
+    $img = htmlspecialchars(ProductImages::heroUrl($p));
     $name = htmlspecialchars($p['name']);
     $link = 'product.php?slug=' . urlencode($p['slug']);
     ?>

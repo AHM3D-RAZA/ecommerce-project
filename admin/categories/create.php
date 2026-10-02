@@ -3,6 +3,7 @@ require_once __DIR__ . '/../../core/Auth.php';
 require_once __DIR__ . '/../../core/Database.php';
 require_once __DIR__ . '/../../core/Helpers.php';
 require_once __DIR__ . '/../../core/Uploader.php';
+require_once __DIR__ . '/../../core/Errors.php';
 require_once __DIR__ . '/../../core/Session.php';
 require_once __DIR__ . '/../../core/Validator.php';
 Auth::requireAdmin('../login.php');
@@ -56,17 +57,17 @@ require_once __DIR__ . '/../../includes/admin-header.php';
                 <h6>Add Category</h6>
             </div>
             <div class="card-body">
-                <form method="post" enctype="multipart/form-data">
+                <?php render_error_summary($errors); ?>
+
+                <form method="post" enctype="multipart/form-data" novalidate>
                     <div class="input-group input-group-outline mb-3 <?= isset($errors['name']) ? 'is-invalid' : '' ?>">
                         <label class="form-label">Category Name</label>
-                        <input type="text" name="name" class="form-control" value="<?= htmlspecialchars($name) ?>" required>
+                        <input type="text" name="name" class="form-control" value="<?= htmlspecialchars($name) ?>">
                     </div>
-                    <?php if (isset($errors['name'])): ?><p class="text-danger text-xs"><?= htmlspecialchars($errors['name']) ?></p><?php endif; ?>
 
                     <label class="form-label mt-2">Category Image</label>
                     <input type="file" name="image" class="form-control mb-1" accept="image/*">
                     <p class="text-xs text-secondary">JPG, PNG, WEBP or GIF. Max 2MB. Optional.</p>
-                    <?php if (isset($errors['image'])): ?><p class="text-danger text-xs"><?= htmlspecialchars($errors['image']) ?></p><?php endif; ?>
 
                     <div class="mt-4">
                         <button type="submit" class="btn bg-gradient-dark">Save Category</button>

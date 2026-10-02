@@ -3,6 +3,7 @@ require_once __DIR__ . '/../core/Session.php';
 require_once __DIR__ . '/../core/Database.php';
 require_once __DIR__ . '/../core/Auth.php';
 require_once __DIR__ . '/../core/Helpers.php';
+require_once __DIR__ . '/../core/ProductImages.php';
 Session::start();
 
 $db = new Database();
@@ -37,7 +38,7 @@ if (!empty($cart)) {
 }
 
 $isLoggedIn = Auth::isLoggedIn();
-$userName = Session::get('user_name');
+$userName = Auth::name();
 
 $pageTitle = isset($pageTitle) ? $pageTitle . ' - ShopWave' : 'ShopWave - Online Electronics Store';
 ?>
@@ -103,11 +104,11 @@ $pageTitle = isset($pageTitle) ? $pageTitle . ' - ShopWave' : 'ShopWave - Online
                     <div class="header-center">
                         <div class="header-search header-search-extended header-search-visible d-none d-lg-block">
                             <a href="#" class="search-toggle" role="button"><i class="icon-search"></i></a>
-                            <form action="category.php" method="get">
+                            <form action="category.php" method="get" novalidate>
                                 <div class="header-search-wrapper search-wrapper-wide">
                                     <label for="q" class="sr-only">Search</label>
                                     <button class="btn btn-primary" type="submit"><i class="icon-search"></i></button>
-                                    <input type="search" class="form-control" name="q" id="q" placeholder="Search product ..." required>
+                                    <input type="search" class="form-control" name="q" id="q" placeholder="Search product ...">
                                 </div><!-- End .header-search-wrapper -->
                             </form>
                         </div><!-- End .header-search -->
@@ -145,7 +146,7 @@ $pageTitle = isset($pageTitle) ? $pageTitle . ' - ShopWave' : 'ShopWave - Online
 
                                                 <figure class="product-image-container">
                                                     <a href="product.php?slug=<?= urlencode($item['slug']) ?>" class="product-image">
-                                                        <img src="<?= htmlspecialchars(shop_image($item['image'])) ?>" alt="product">
+                                                        <img src="<?= htmlspecialchars(ProductImages::heroUrl($item)) ?>" alt="product">
                                                     </a>
                                                 </figure>
                                                 <a href="cart.php?remove=<?= (int) $item['id'] ?>" class="btn-remove" title="Remove Product"><i class="icon-close"></i></a>

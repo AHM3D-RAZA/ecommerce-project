@@ -2,6 +2,7 @@
 require_once __DIR__ . '/../core/Session.php';
 require_once __DIR__ . '/../core/Auth.php';
 require_once __DIR__ . '/../core/Validator.php';
+require_once __DIR__ . '/../core/Errors.php';
 Session::start();
 
 if (Auth::isLoggedIn()) {
@@ -9,7 +10,7 @@ if (Auth::isLoggedIn()) {
     exit;
 }
 
-$registerError = null;
+$registerErrors = [];
 $registerName = '';
 $registerEmail = '';
 
@@ -26,7 +27,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['register'])) {
       ->matches($password, $passwordConfirm, 'password_confirm');
 
     if ($v->fails()) {
-        $registerError = $v->first();
+        // Collect every problem so they can all be listed in one box.
+        $registerErrors = array_values($v->errors());
     } else {
         $auth = new Auth();
         $result = $auth->register($registerName, $registerEmail, $password);
@@ -39,7 +41,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['register'])) {
             exit;
         }
 
-        $registerError = $result['message'];
+        $registerErrors = [$result['message']];
     }
 }
 

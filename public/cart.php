@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/../core/Session.php';
 require_once __DIR__ . '/../core/Database.php';
+require_once __DIR__ . '/../core/ProductImages.php';
 Session::start();
 
 $db = new Database();
@@ -111,7 +112,7 @@ require_once __DIR__ . '/../includes/header.php';
                         <?php else: ?>
                             <div class="row">
                                 <div class="col-lg-8">
-                                    <form action="cart.php" method="post">
+                                    <form action="cart.php" method="post" novalidate>
                                         <table class="table table-cart table-mobile">
                                             <thead>
                                                 <tr>
@@ -129,7 +130,7 @@ require_once __DIR__ . '/../includes/header.php';
                                                         <td class="product-col">
                                                             <div class="product">
                                                                 <figure class="product-media">
-                                                                    <img src="<?= htmlspecialchars(shop_image($item['image'])) ?>" alt="<?= htmlspecialchars($item['name']) ?>">
+                                                                    <img src="<?= htmlspecialchars(ProductImages::heroUrl($item)) ?>" alt="<?= htmlspecialchars($item['name']) ?>">
                                                                 </figure>
                                                                 <h3 class="product-title">
                                                                     <a href="product.php?slug=<?= urlencode($item['slug']) ?>"><?= htmlspecialchars($item['name']) ?></a>

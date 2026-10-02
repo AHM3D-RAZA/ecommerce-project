@@ -5,7 +5,7 @@ require_once __DIR__ . '/../../core/Session.php';
 Auth::requireAdmin('../login.php');
 
 $db = new Database();
-$currentUserId = (int) Session::get('user_id');
+$currentUserId = (int) Auth::id();
 
 if (isset($_GET['toggle'])) {
     $id = (int) $_GET['toggle'];

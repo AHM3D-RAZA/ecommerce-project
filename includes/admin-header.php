@@ -4,13 +4,14 @@
 // Auth::requireAdmin() check and setting $pageTitle / $activeNav.
 
 require_once __DIR__ . '/../core/Session.php';
+require_once __DIR__ . '/../core/Auth.php';
 
 // Pages one folder deeper than /admin (categories, products, users, orders)
 // pass $base = '../' so links and asset paths still resolve correctly.
 $base = $base ?? '';
 $activeNav = $activeNav ?? '';
 $pageTitle = $pageTitle ?? 'Dashboard';
-$adminName = Session::get('user_name', 'Admin');
+$adminName = Auth::name() ?: 'Admin';
 
 function nav_active($key, $activeNav)
 {
