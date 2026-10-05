@@ -5,6 +5,7 @@ require_once __DIR__ . '/../../core/Helpers.php';
 require_once __DIR__ . '/../../core/ProductImages.php';
 require_once __DIR__ . '/../../core/Errors.php';
 require_once __DIR__ . '/../../core/OrderMailer.php';
+require_once __DIR__ . '/../../core/OrderStatus.php';
 require_once __DIR__ . '/../../core/Session.php';
 Auth::requireAdmin('../login.php');
 
@@ -22,24 +23,31 @@ if (!$order) {
     exit;
 }
 
-// Update order/payment status.
-$orderError = '';
+// Update order/payment status. Transitions are enforced by OrderStatus, so an
+// order that has been delivered - or a payment that has settled - can never be
+// dragged backwards by submitting the form.
+$statusErrors = [];
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $newStatus = $_POST['order_status'] ?? '';
     $newPaymentStatus = $_POST['payment_status'] ?? '';
 
-    $validStatuses = ['processing', 'shipped', 'delivered', 'cancelled'];
-    $validPayment = ['pending', 'completed', 'failed'];
+    // $order still holds the values from before this POST.
+    $statusErrors = OrderStatus::validate(
+        $order['order_status'],
+        $newStatus,
+        $order['payment_status'],
+        $newPaymentStatus
+    );
 
-    if (in_array($newStatus, $validStatuses, true) && in_array($newPaymentStatus, $validPayment, true)) {
+    if (empty($statusErrors)) {
         $db->run(
             "UPDATE orders SET order_status = ?, payment_status = ? WHERE id = ?",
             [$newStatus, $newPaymentStatus, $id]
         );
 
-        // $order still holds the values from before this POST, so anything that
-        // actually changed is emailed - saving the form untouched sends nothing.
+        // Only a legal, actual change reaches the mailer - saving the form
+        // untouched sends nothing.
         OrderMailer::orderUpdated($db, $order['id'], $order['order_status'], $newStatus, $order['payment_status'], $newPaymentStatus);
 
         Session::flash('success', 'Order updated.');
@@ -47,9 +55,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
 
-    // Rejected server-side - say so instead of silently doing nothing.
-    $orderError = 'That order status or payment status is not valid. Please pick from the lists.';
+    // Rejected: fall through and re-render with the reasons.
 }
+
+// Which options are selectable from where this order currently sits.
+$allowedOrderStatuses = OrderStatus::allowedOrderStatuses($order['order_status']);
+$allowedPaymentStatuses = OrderStatus::allowedPaymentStatuses($order['payment_status']);
 
 $items = $db->select(
     "SELECT oi.*, p.id AS product_id, p.name, p.slug, p.image FROM order_items oi
@@ -131,20 +142,26 @@ require_once __DIR__ . '/../../includes/admin-header.php';
                 <?php endif; ?>
                 <p class="text-sm">Placed: <?= date('d M Y, h:i A', strtotime($order['created_at'])) ?></p>
 
-                <?php render_error_summary($orderError ? [$orderError] : []); ?>
+                <?php render_error_summary($statusErrors); ?>
 
                 <form method="post" class="mt-3" novalidate>
                     <label class="form-label text-sm">Order Status</label>
                     <select name="order_status" class="form-control mb-3">
-                        <?php foreach (['processing', 'shipped', 'delivered', 'cancelled'] as $s): ?>
-                            <option value="<?= $s ?>" <?= $order['order_status'] === $s ? 'selected' : '' ?>><?= ucfirst($s) ?></option>
+                        <?php foreach (OrderStatus::ORDER_STATES as $s): ?>
+                            <?php $ok = in_array($s, $allowedOrderStatuses, true); ?>
+                            <option value="<?= $s ?>"
+                                    <?= $order['order_status'] === $s ? 'selected' : '' ?>
+                                    <?= $ok ? '' : 'disabled' ?>><?= ucfirst($s) ?><?= $ok ? '' : ' (not available)' ?></option>
                         <?php endforeach; ?>
                     </select>
 
                     <label class="form-label text-sm">Payment Status</label>
                     <select name="payment_status" class="form-control mb-3">
-                        <?php foreach (['pending', 'completed', 'failed'] as $s): ?>
-                            <option value="<?= $s ?>" <?= $order['payment_status'] === $s ? 'selected' : '' ?>><?= ucfirst($s) ?></option>
+                        <?php foreach (OrderStatus::PAYMENT_STATES as $s): ?>
+                            <?php $ok = in_array($s, $allowedPaymentStatuses, true); ?>
+                            <option value="<?= $s ?>"
+                                    <?= $order['payment_status'] === $s ? 'selected' : '' ?>
+                                    <?= $ok ? '' : 'disabled' ?>><?= ucfirst($s) ?><?= $ok ? '' : ' (not available)' ?></option>
                         <?php endforeach; ?>
                     </select>
 
